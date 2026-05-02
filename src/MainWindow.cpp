@@ -64,10 +64,10 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     });
     connect(m_renderer, &Renderer::finished, this, [this](bool ok, const QString& msg) {
         if (ok) {
-            emit statusMessage(QString("✔ Render complete: %1").arg(msg));
+            emit statusMessage(tr("Render complete: %1").arg(msg));
             QMessageBox::information(this, tr("Render"), tr("Render complete:\n%1").arg(msg));
         } else {
-            emit statusMessage(QString("✗ Render failed: %1").arg(msg), true);
+            emit statusMessage(tr("Render failed: %1").arg(msg), StatusPane::Error);
             QMessageBox::critical(this, tr("Render failed"), msg);
         }
     });
@@ -236,17 +236,17 @@ void MainWindow::importPaths(const QStringList& paths) {
             int added = 0;
             for (const auto& r : results) {
                 if (!r.ok) {
-                    emit statusMessage(QString("⚠ Skipped %1: %2")
+                    emit statusMessage(tr("Skipped %1: %2")
                                        .arg(QFileInfo(r.error).fileName())
-                                       .arg(r.error), true);
+                                       .arg(r.error), StatusPane::Warning);
                     continue;
                 }
                 m_project.items.append(r.item);
                 ++added;
                 if (!r.warning.isEmpty()) {
-                    emit statusMessage(QString("⚠ %1: %2")
+                    emit statusMessage(QString("%1: %2")
                         .arg(QFileInfo(r.item.common().sourcePath).fileName())
-                        .arg(r.warning), true);
+                        .arg(r.warning), StatusPane::Warning);
                 }
             }
             m_project.sortChronologically();
@@ -367,7 +367,7 @@ void MainWindow::openProject() {
     m_projectPath = p;
     m_selectedId = QUuid();
     setWindowTitle(QString("vlip — %1").arg(QFileInfo(p).fileName()));
-    for (const auto& w : warns) emit statusMessage(w, true);
+    for (const auto& w : warns) emit statusMessage(w, StatusPane::Warning);
     emit selectionChanged(m_selectedId);
     emit projectChanged();
     emit statusMessage(tr("Loaded %1 (%2 items)").arg(p).arg(m_project.items.size()));

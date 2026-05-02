@@ -55,7 +55,7 @@ public:
 signals:
     void projectChanged();
     void selectionChanged(const QUuid& id);
-    void statusMessage(const QString& msg, bool warning = false);
+    void statusMessage(const QString& msg, int level = 0);  // StatusPane::Level
     void renderProgress(double frac);
 
 protected:
