@@ -6,6 +6,7 @@
 #include <QVector>
 #include <QSharedPointer>
 #include <QVariantMap>
+#include <QColor>
 
 namespace vlip {
 
@@ -60,11 +61,22 @@ struct Canvas {
     int fps = 30;
 };
 
+enum class SubtitlePosition { Top, Middle, Bottom };
+
+struct SubtitleStyle {
+    QString fontFamily;                  // empty → first available DejaVu / system fallback
+    int fontSizePx = 0;                  // 0 → auto (canvas-relative)
+    QColor fontColor   = QColor(255, 255, 255, 255);
+    QColor bgColor     = QColor(0,   0,   0,   140);  // alpha controls box opacity
+    SubtitlePosition position = SubtitlePosition::Bottom;
+};
+
 struct Defaults {
     double imageDuration = 4.0;
     double videoTrimStart = 0.0;    // last bulk values (informational)
     double videoTrimEnd = 0.0;
     double transitionSecs = 0.0;    // fade-out/fade-in duration between clips; 0 disables
+    SubtitleStyle subtitle;
 };
 
 struct Project {

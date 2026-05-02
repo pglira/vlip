@@ -80,6 +80,55 @@ Item itemFromJson(const QJsonObject& o) {
     return it;
 }
 
+QString colorToString(const QColor& c) {
+    return QString("#%1%2%3%4")
+        .arg(c.red(),   2, 16, QChar('0'))
+        .arg(c.green(), 2, 16, QChar('0'))
+        .arg(c.blue(),  2, 16, QChar('0'))
+        .arg(c.alpha(), 2, 16, QChar('0'));
+}
+
+QColor colorFromString(const QString& s, const QColor& fallback) {
+    if (s.isEmpty()) return fallback;
+    QColor c(s);
+    return c.isValid() ? c : fallback;
+}
+
+const char* positionToString(SubtitlePosition p) {
+    switch (p) {
+        case SubtitlePosition::Top:    return "top";
+        case SubtitlePosition::Middle: return "middle";
+        case SubtitlePosition::Bottom: return "bottom";
+    }
+    return "bottom";
+}
+
+SubtitlePosition positionFromString(const QString& s) {
+    if (s == "top") return SubtitlePosition::Top;
+    if (s == "middle") return SubtitlePosition::Middle;
+    return SubtitlePosition::Bottom;
+}
+
+QJsonObject toJson(const SubtitleStyle& s) {
+    QJsonObject o;
+    o["font_family"] = s.fontFamily;
+    o["font_size_px"] = s.fontSizePx;
+    o["font_color"] = colorToString(s.fontColor);
+    o["bg_color"] = colorToString(s.bgColor);
+    o["position"] = positionToString(s.position);
+    return o;
+}
+
+SubtitleStyle subtitleFromJson(const QJsonObject& o) {
+    SubtitleStyle s;
+    s.fontFamily = o.value("font_family").toString();
+    s.fontSizePx = o.value("font_size_px").toInt(0);
+    s.fontColor = colorFromString(o.value("font_color").toString(), s.fontColor);
+    s.bgColor   = colorFromString(o.value("bg_color").toString(), s.bgColor);
+    s.position  = positionFromString(o.value("position").toString("bottom"));
+    return s;
+}
+
 } // namespace
 
 bool ProjectIO::save(const Project& p, const QString& path, QString* err) {
@@ -98,6 +147,7 @@ bool ProjectIO::save(const Project& p, const QString& path, QString* err) {
     defaults["video_trim_start"] = p.defaults.videoTrimStart;
     defaults["video_trim_end"] = p.defaults.videoTrimEnd;
     defaults["transition_secs"] = p.defaults.transitionSecs;
+    defaults["subtitle"] = toJson(p.defaults.subtitle);
     root["defaults"] = defaults;
 
     QJsonArray items;
@@ -142,6 +192,9 @@ bool ProjectIO::load(Project* p, const QString& path, QStringList* warnings, QSt
     p->defaults.videoTrimStart = defaults.value("video_trim_start").toDouble(0.0);
     p->defaults.videoTrimEnd = defaults.value("video_trim_end").toDouble(0.0);
     p->defaults.transitionSecs = defaults.value("transition_secs").toDouble(0.0);
+    if (defaults.contains("subtitle")) {
+        p->defaults.subtitle = subtitleFromJson(defaults.value("subtitle").toObject());
+    }
 
     p->items.clear();
     for (auto v : root.value("items").toArray()) {

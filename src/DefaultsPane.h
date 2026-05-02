@@ -1,9 +1,13 @@
 #pragma once
 
 #include <QWidget>
+#include <QColor>
 
 class QSpinBox;
 class QDoubleSpinBox;
+class QFontComboBox;
+class QComboBox;
+class QPushButton;
 
 namespace vlip {
 
@@ -18,11 +22,18 @@ public slots:
     void refresh();
 
 private:
+    void pickColor(QPushButton* btn, QColor& target, bool withAlpha);
+    void paintSwatch(QPushButton* btn, const QColor& c);
+
     MainWindow* m_mw;
     QSpinBox *m_w, *m_h, *m_fps;
     QDoubleSpinBox *m_imgDur;
     QDoubleSpinBox *m_vidTrimStart, *m_vidTrimEnd;
     QDoubleSpinBox *m_transition;
+    QFontComboBox *m_fontFamily;
+    QSpinBox *m_fontSize;
+    QPushButton *m_fontColor, *m_bgColor;
+    QComboBox *m_position;
     bool m_suspend = false;
 };
 

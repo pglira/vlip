@@ -6,6 +6,7 @@
 #include <QStringBuilder>
 #include <QStringList>
 #include <QRegularExpression>
+#include <QProcess>
 
 namespace vlip {
 
@@ -20,8 +21,8 @@ QString escapeDrawText(const QString& text) {
     return s;
 }
 
-QString findFontFile() {
-    QStringList candidates = {
+QString fallbackFontFile() {
+    static const QStringList candidates = {
         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
         "/usr/share/fonts/TTF/DejaVuSans.ttf",
@@ -35,20 +36,47 @@ QString findFontFile() {
     return {};
 }
 
-QString drawTextChain(const QString& subtitle, int canvasH) {
+QString resolveFontFile(const QString& family) {
+    if (!family.isEmpty()) {
+        // Use fontconfig if available — works for any installed family.
+        QProcess pr;
+        pr.start("fc-match", {"-f", "%{file}", family});
+        if (pr.waitForStarted(500) && pr.waitForFinished(1500)) {
+            QString p = QString::fromUtf8(pr.readAllStandardOutput()).trimmed();
+            if (!p.isEmpty() && QFileInfo::exists(p)) return p;
+        }
+    }
+    return fallbackFontFile();
+}
+
+QString colorToDrawtext(const QColor& c) {
+    return QString("0x%1%2%3@%4")
+        .arg(c.red(),   2, 16, QChar('0'))
+        .arg(c.green(), 2, 16, QChar('0'))
+        .arg(c.blue(),  2, 16, QChar('0'))
+        .arg(c.alphaF(), 0, 'f', 3);
+}
+
+QString drawTextChain(const QString& subtitle, int canvasH,
+                      const SubtitleStyle& style) {
     if (subtitle.trimmed().isEmpty()) return {};
-    QString font = findFontFile();
-    int fontSize = qMax(20, canvasH / 22);
+    QString font = resolveFontFile(style.fontFamily);
+    int fontSize = style.fontSizePx > 0 ? style.fontSizePx
+                                        : qMax(20, canvasH / 22);
     QString chain = "drawtext=";
     if (!font.isEmpty()) {
         chain += QString("fontfile='%1':").arg(font);
     }
     chain += QString("text='%1'").arg(escapeDrawText(subtitle));
-    chain += ":fontcolor=white";
+    chain += QString(":fontcolor=%1").arg(colorToDrawtext(style.fontColor));
     chain += QString(":fontsize=%1").arg(fontSize);
-    chain += ":box=1:boxcolor=black@0.55:boxborderw=12";
+    chain += QString(":box=1:boxcolor=%1:boxborderw=12").arg(colorToDrawtext(style.bgColor));
     chain += ":x=(w-text_w)/2";
-    chain += QString(":y=h-(text_h)-h/12");
+    switch (style.position) {
+        case SubtitlePosition::Top:    chain += ":y=h/12"; break;
+        case SubtitlePosition::Middle: chain += ":y=(h-text_h)/2"; break;
+        case SubtitlePosition::Bottom: chain += ":y=h-(text_h)-h/12"; break;
+    }
     return chain;
 }
 
@@ -175,7 +203,7 @@ QString Renderer::buildAndExecute(const Project& p, const QString& outPath, QStr
             chain += QString("scale=%1:%2:force_original_aspect_ratio=decrease").arg(W).arg(H);
             chain += QString(",pad=%1:%2:(ow-iw)/2:(oh-ih)/2:color=black").arg(W).arg(H);
             chain += QString(",setsar=1,fps=%1,format=yuv420p").arg(FPS);
-            QString dt = drawTextChain(img.common.subtitle, H);
+            QString dt = drawTextChain(img.common.subtitle, H, p.defaults.subtitle);
             if (!dt.isEmpty()) chain += "," + dt;
             chain += vFade;
             chain += QString("[%1]").arg(vlabel);
@@ -198,7 +226,7 @@ QString Renderer::buildAndExecute(const Project& p, const QString& outPath, QStr
             chain += QString("scale=%1:%2:force_original_aspect_ratio=decrease").arg(W).arg(H);
             chain += QString(",pad=%1:%2:(ow-iw)/2:(oh-ih)/2:color=black").arg(W).arg(H);
             chain += QString(",setsar=1,fps=%1,format=yuv420p").arg(FPS);
-            QString dt = drawTextChain(vid.common.subtitle, H);
+            QString dt = drawTextChain(vid.common.subtitle, H, p.defaults.subtitle);
             if (!dt.isEmpty()) chain += "," + dt;
             chain += vFade;
             chain += QString("[%1]").arg(vlabel);
