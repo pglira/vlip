@@ -1,0 +1,42 @@
+# Build artifacts
+build/
+build-*/
+*.o
+*.obj
+*.so
+*.so.*
+*.dll
+*.dylib
+*.exe
+*.app/
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+!CMakeLists.txt
+
+# Qt MOC / generated
+moc_*.cpp
+moc_*.h
+qrc_*.cpp
+ui_*.h
+*_autogen/
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Local user state
+*.user
+compile_commands.json
+.cache/
+
+# Sample media used by the smoke / saveload tests is not committed.
+tests/data/
