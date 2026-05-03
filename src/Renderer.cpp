@@ -59,7 +59,7 @@ QString colorToDrawtext(const QColor& c) {
 }
 
 QString drawTextChain(const QString& subtitle, int canvasH,
-                      const SubtitleStyle& style) {
+                      const SubtitleStyle& style, double segmentDur) {
     if (subtitle.trimmed().isEmpty()) return {};
     QString font = resolveFontFile(style.fontFamily);
     int fontSize = style.fontSizePx > 0 ? style.fontSizePx
@@ -77,6 +77,12 @@ QString drawTextChain(const QString& subtitle, int canvasH,
         case SubtitlePosition::Top:    chain += ":y=h/12"; break;
         case SubtitlePosition::Middle: chain += ":y=(h-text_h)/2"; break;
         case SubtitlePosition::Bottom: chain += ":y=h-(text_h)-h/12"; break;
+    }
+    // Visibility window. Each segment's filtergraph time starts at 0, so a
+    // simple lt(t,N) limits the burn to the first N seconds. Skip when 0
+    // (always-on) or when the limit covers the full segment anyway.
+    if (style.visibleSecs > 0.0 && style.visibleSecs < segmentDur) {
+        chain += QString(":enable='lt(t,%1)'").arg(style.visibleSecs, 0, 'f', 4);
     }
     return chain;
 }
@@ -214,7 +220,7 @@ QString Renderer::buildAndExecute(const Project& p, const QString& outPath, QStr
             chain += QString("scale=%1:%2:force_original_aspect_ratio=decrease").arg(W).arg(H);
             chain += QString(",pad=%1:%2:(ow-iw)/2:(oh-ih)/2:color=black").arg(W).arg(H);
             chain += QString(",setsar=1,fps=%1,format=yuv420p").arg(FPS);
-            QString dt = drawTextChain(img.common.subtitle, H, p.defaults.subtitle);
+            QString dt = drawTextChain(img.common.subtitle, H, p.defaults.subtitle, dur);
             if (!dt.isEmpty()) chain += "," + dt;
             chain += vFade;
             chain += QString("[%1]").arg(vlabel);
@@ -237,7 +243,7 @@ QString Renderer::buildAndExecute(const Project& p, const QString& outPath, QStr
             chain += QString("scale=%1:%2:force_original_aspect_ratio=decrease").arg(W).arg(H);
             chain += QString(",pad=%1:%2:(ow-iw)/2:(oh-ih)/2:color=black").arg(W).arg(H);
             chain += QString(",setsar=1,fps=%1,format=yuv420p").arg(FPS);
-            QString dt = drawTextChain(vid.common.subtitle, H, p.defaults.subtitle);
+            QString dt = drawTextChain(vid.common.subtitle, H, p.defaults.subtitle, dur);
             if (!dt.isEmpty()) chain += "," + dt;
             chain += vFade;
             chain += QString("[%1]").arg(vlabel);

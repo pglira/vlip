@@ -152,6 +152,16 @@ DefaultsPane::DefaultsPane(MainWindow* mw, QWidget* parent)
     m_position->addItem(tr("Middle"), int(SubtitlePosition::Middle));
     m_position->addItem(tr("Bottom"), int(SubtitlePosition::Bottom));
     sLay->addRow(tr("Position:"), m_position);
+    m_subtitleDuration = new QDoubleSpinBox(subs);
+    m_subtitleDuration->setRange(0.0, 600.0);
+    m_subtitleDuration->setDecimals(2);
+    m_subtitleDuration->setSingleStep(0.5);
+    m_subtitleDuration->setSuffix(" s");
+    m_subtitleDuration->setSpecialValueText(tr("full segment"));
+    m_subtitleDuration->setToolTip(tr(
+        "How long the subtitle stays on screen at the start of each item.\n"
+        "0 = visible for the whole image / video segment."));
+    sLay->addRow(tr("Visible for:"), m_subtitleDuration);
     outer->addWidget(subs);
 
     auto pushSubtitle = [this]() {
@@ -160,6 +170,7 @@ DefaultsPane::DefaultsPane(MainWindow* mw, QWidget* parent)
         d.subtitle.fontFamily = m_fontFamily->currentFont().family();
         d.subtitle.fontSizePx = m_fontSize->value();
         d.subtitle.position   = SubtitlePosition(m_position->currentData().toInt());
+        d.subtitle.visibleSecs = m_subtitleDuration->value();
         // Colors are pushed by their pickers directly (see pickColor lambda).
         m_mw->setDefaults(d);
     };
@@ -169,6 +180,8 @@ DefaultsPane::DefaultsPane(MainWindow* mw, QWidget* parent)
             [pushSubtitle](int) { pushSubtitle(); });
     connect(m_position, qOverload<int>(&QComboBox::currentIndexChanged), this,
             [pushSubtitle](int) { pushSubtitle(); });
+    connect(m_subtitleDuration, qOverload<double>(&QDoubleSpinBox::valueChanged), this,
+            [pushSubtitle](double) { pushSubtitle(); });
     connect(m_fontColor, &QPushButton::clicked, this, [this]() {
         Defaults d = m_mw->project().defaults;
         pickColor(m_fontColor, d.subtitle.fontColor, /*alpha=*/false);
@@ -221,6 +234,7 @@ void DefaultsPane::refresh() {
     paintSwatch(m_bgColor,   p.defaults.subtitle.bgColor);
     int posIdx = m_position->findData(int(p.defaults.subtitle.position));
     if (posIdx >= 0) m_position->setCurrentIndex(posIdx);
+    m_subtitleDuration->setValue(p.defaults.subtitle.visibleSecs);
 
     m_suspend = false;
 }

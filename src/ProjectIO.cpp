@@ -135,6 +135,7 @@ QJsonObject toJson(const SubtitleStyle& s) {
     o["font_color"] = colorToString(s.fontColor);
     o["bg_color"] = colorToString(s.bgColor);
     o["position"] = positionToString(s.position);
+    o["visible_secs"] = s.visibleSecs;
     return o;
 }
 
@@ -145,6 +146,7 @@ SubtitleStyle subtitleFromJson(const QJsonObject& o) {
     s.fontColor = colorFromString(o.value("font_color").toString(), s.fontColor);
     s.bgColor   = colorFromString(o.value("bg_color").toString(), s.bgColor);
     s.position  = positionFromString(o.value("position").toString("bottom"));
+    s.visibleSecs = o.value("visible_secs").toDouble(0.0);
     return s;
 }
 

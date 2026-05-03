@@ -34,6 +34,7 @@ private:
     QSpinBox *m_fontSize;
     QPushButton *m_fontColor, *m_bgColor;
     QComboBox *m_position;
+    QDoubleSpinBox *m_subtitleDuration;
     bool m_suspend = false;
 };
 

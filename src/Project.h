@@ -72,6 +72,9 @@ struct SubtitleStyle {
     QColor fontColor   = QColor(255, 255, 255, 255);
     QColor bgColor     = QColor(0,   0,   0,   140);  // alpha controls box opacity
     SubtitlePosition position = SubtitlePosition::Bottom;
+    // How long, in seconds from the start of each segment, the subtitle
+    // stays on screen. 0 = visible for the whole segment.
+    double visibleSecs = 0.0;
 };
 
 struct Defaults {
