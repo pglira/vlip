@@ -66,6 +66,11 @@ public:
 
 signals:
     void projectChanged();
+    // Emitted instead of projectChanged() for non-structural per-item
+    // edits (toggle used, edit subtitle, change duration, etc.). Lets
+    // panes update a single row instead of rebuilding everything — the
+    // difference is dramatic on 1000+ item projects.
+    void itemChanged(const QUuid& id);
     void selectionChanged(const QUuid& id);
     void statusMessage(const QString& msg, int level = 0);  // StatusPane::Level
 
@@ -82,6 +87,8 @@ private:
     void resetLayoutToDefaults();
     Item* findItem(const QUuid& id);
     void onProjectMutated(bool resort);
+    // Per-item, non-structural change: emits itemChanged(id) only.
+    void onItemMutated(const QUuid& id);
     QString defaultProjectsDir() const;
 
     Project m_project;

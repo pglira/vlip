@@ -125,10 +125,82 @@ TimelinePane::TimelinePane(MainWindow* mw, QWidget* parent) : QWidget(parent), m
     refresh();
 }
 
+QIcon TimelinePane::iconForItem(const Item& it) {
+    // Text clips share one icon; cache the QIcon once.
+    if (it.kind == ItemKind::TextClip) {
+        static const QString kKey = QStringLiteral("__textclip__");
+        auto cached = m_iconCache.constFind(kKey);
+        if (cached != m_iconCache.constEnd()) return *cached;
+        QIcon icon(textClipThumbnail());
+        m_iconCache.insert(kKey, icon);
+        return icon;
+    }
+    const QString& key = it.common().thumbPath;
+    if (key.isEmpty()) return {};
+    auto cached = m_iconCache.constFind(key);
+    if (cached != m_iconCache.constEnd()) return *cached;
+    QPixmap pm(key);
+    if (pm.isNull()) {
+        // Cache the empty result too so we don't keep retrying broken paths.
+        m_iconCache.insert(key, QIcon());
+        return {};
+    }
+    pm = pm.scaledToHeight(kThumbHeight, Qt::SmoothTransformation);
+    if (pm.width() > kThumbMaxWidth) {
+        pm = pm.scaledToWidth(kThumbMaxWidth, Qt::SmoothTransformation);
+    }
+    QIcon icon(pm);
+    m_iconCache.insert(key, icon);
+    return icon;
+}
+
+void TimelinePane::populateRow(QTreeWidgetItem* row, const Item& it) {
+    row->setFlags(row->flags() | Qt::ItemIsUserCheckable);
+    row->setCheckState(0, it.common().used ? Qt::Checked : Qt::Unchecked);
+    row->setData(0, Qt::UserRole, it.common().id.toString());
+    row->setIcon(1, iconForItem(it));
+
+    QString fname;
+    if (it.kind == ItemKind::TextClip) {
+        fname = textClipDisplayName(it.textClip.text);
+    } else {
+        fname = QFileInfo(it.common().sourcePath).fileName();
+        if (it.common().sourceMissing) fname += "  [missing]";
+    }
+    row->setText(2, fname);
+
+    QDateTime ts = it.common().timestamp;
+    QString dateText;
+    if (ts.isValid()) {
+        ts.setTimeSpec(Qt::UTC);
+        dateText = ts.toLocalTime().toString("yyyy-MM-dd HH:mm");
+    }
+    if (it.common().timestampUncertain) dateText += "  ?";
+    row->setText(3, dateText);
+
+    // Always set the foreground explicitly so a re-populate (refreshRow)
+    // doesn't leave a stale dimmed brush from a prior state.
+    QBrush base = (it.common().used) ? QBrush() : QBrush(QColor(140, 140, 140));
+    for (int c = 0; c < m_tree->columnCount(); ++c) {
+        row->setForeground(c, base);
+    }
+    if (it.common().sourceMissing) {
+        row->setForeground(2, QBrush(QColor(200, 70, 70)));
+    }
+}
+
+QTreeWidgetItem* TimelinePane::findRow(const QUuid& id) const {
+    const QString s = id.toString();
+    for (int i = 0; i < m_tree->topLevelItemCount(); ++i) {
+        auto* it = m_tree->topLevelItem(i);
+        if (it->data(0, Qt::UserRole).toString() == s) return it;
+    }
+    return nullptr;
+}
+
 void TimelinePane::refresh() {
     // Block signals on the tree so setCheckState() / setText() don't fire
-    // itemChanged → setUsed feedback. Using QSignalBlocker is more robust
-    // than the m_suspendSignals flag (covers signals we forgot to gate).
+    // itemChanged → setUsed feedback.
     QSignalBlocker treeBlock(m_tree);
     m_suspendSignals = true;
     m_tree->clear();
@@ -138,54 +210,33 @@ void TimelinePane::refresh() {
         // immediately after `new QTreeWidgetItem(parent)` is sometimes
         // ignored visually.
         auto* row = new QTreeWidgetItem;
-        row->setFlags(row->flags() | Qt::ItemIsUserCheckable);
-        row->setCheckState(0, it.common().used ? Qt::Checked : Qt::Unchecked);
-        row->setData(0, Qt::UserRole, it.common().id.toString());
-        if (it.kind == ItemKind::TextClip) {
-            row->setIcon(1, QIcon(textClipThumbnail()));
-        } else if (!it.common().thumbPath.isEmpty()) {
-            QPixmap pm(it.common().thumbPath);
-            if (!pm.isNull()) {
-                pm = pm.scaledToHeight(kThumbHeight, Qt::SmoothTransformation);
-                if (pm.width() > kThumbMaxWidth) {
-                    pm = pm.scaledToWidth(kThumbMaxWidth, Qt::SmoothTransformation);
-                }
-                row->setIcon(1, QIcon(pm));
-            }
-        }
-        QString fname;
-        if (it.kind == ItemKind::TextClip) {
-            fname = textClipDisplayName(it.textClip.text);
-        } else {
-            fname = QFileInfo(it.common().sourcePath).fileName();
-            if (it.common().sourceMissing) fname += "  [missing]";
-        }
-        row->setText(2, fname);
-
-        QDateTime ts = it.common().timestamp;
-        QString dateText;
-        if (ts.isValid()) {
-            ts.setTimeSpec(Qt::UTC);
-            dateText = ts.toLocalTime().toString("yyyy-MM-dd HH:mm");
-        }
-        if (it.common().timestampUncertain) dateText += "  ?";
-        row->setText(3, dateText);
-
-        if (!it.common().used) {
-            QBrush dim(QColor(140, 140, 140));
-            for (int c = 0; c < m_tree->columnCount(); ++c) {
-                row->setForeground(c, dim);
-            }
-        }
-        if (it.common().sourceMissing) {
-            row->setForeground(2, QBrush(QColor(200, 70, 70)));
-        }
+        populateRow(row, it);
         m_tree->addTopLevelItem(row);
     }
     QUuid sel = m_mw->selectedId();
     if (!sel.isNull()) selectId(sel);
     // Qt sometimes resizes Fixed columns when items are populated; re-pin.
     m_tree->setColumnWidth(0, 28);
+    m_suspendSignals = false;
+}
+
+void TimelinePane::refreshRow(const QUuid& id) {
+    auto* row = findRow(id);
+    if (!row) {
+        // Row absent — caller should have used refresh(). Fall back so we
+        // don't silently drop the update.
+        refresh();
+        return;
+    }
+    int idx = m_mw->project().indexOfId(id);
+    if (idx < 0) {
+        // Item is gone; rebuild handles removal.
+        refresh();
+        return;
+    }
+    QSignalBlocker treeBlock(m_tree);
+    m_suspendSignals = true;
+    populateRow(row, m_mw->project().items[idx]);
     m_suspendSignals = false;
 }
 

@@ -157,6 +157,10 @@ void PropertiesPane::onSelectionChanged(const QUuid& id) {
     refresh();
 }
 
+void PropertiesPane::onItemChanged(const QUuid& id) {
+    if (id == m_id) refresh();
+}
+
 void PropertiesPane::refresh() {
     m_suspend = true;
     Item* it = current();

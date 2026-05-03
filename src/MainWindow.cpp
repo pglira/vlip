@@ -50,6 +50,16 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
             Qt::QueuedConnection);
     connect(this, &MainWindow::projectChanged, m_preview, &PreviewPane::refresh,
             Qt::QueuedConnection);
+
+    // Per-item changes: surgical update (no full pane rebuild). Queued so
+    // we never tear the originating widget down mid-signal.
+    connect(this, &MainWindow::itemChanged, m_timeline, &TimelinePane::refreshRow,
+            Qt::QueuedConnection);
+    connect(this, &MainWindow::itemChanged, m_properties, &PropertiesPane::onItemChanged,
+            Qt::QueuedConnection);
+    connect(this, &MainWindow::itemChanged, m_preview, &PreviewPane::onItemChanged,
+            Qt::QueuedConnection);
+
     connect(this, &MainWindow::selectionChanged, m_properties, &PropertiesPane::onSelectionChanged);
     connect(this, &MainWindow::selectionChanged, m_preview, &PreviewPane::onSelectionChanged);
     connect(this, &MainWindow::selectionChanged, m_timeline, &TimelinePane::selectId);
@@ -95,7 +105,7 @@ void MainWindow::setupPanes() {
     m_dockTimeline = mkDock(tr("Timeline"), m_timeline, "DockTimeline", Qt::LeftDockWidgetArea);
     m_dockPreview = mkDock(tr("Preview"), m_preview, "DockPreview", Qt::RightDockWidgetArea);
     m_dockProperties = mkDock(tr("Properties"), m_properties, "DockProperties", Qt::RightDockWidgetArea);
-    m_dockDefaults = mkDock(tr("Project defaults"), m_defaults, "DockDefaults", Qt::RightDockWidgetArea);
+    m_dockDefaults = mkDock(tr("Project settings"), m_defaults, "DockDefaults", Qt::RightDockWidgetArea);
     m_dockStatus = mkDock(tr("Status / progress"), m_status, "DockStatus", Qt::BottomDockWidgetArea);
 
     // Right column: Preview on top, Properties below (small).
@@ -215,22 +225,37 @@ void MainWindow::dropEvent(QDropEvent* e) {
 
 void MainWindow::importPaths(const QStringList& paths) {
     if (paths.isEmpty()) return;
-    emit statusMessage(QString("Importing %1 file(s)…").arg(paths.size()));
-    auto* watcher = new QFutureWatcher<QVector<ImportResult>>(this);
-    QFuture<QVector<ImportResult>> fut = QtConcurrent::run([this, paths]() {
-        QVector<ImportResult> out;
-        out.reserve(paths.size());
-        double dur = m_project.defaults.imageDuration;
-        for (const auto& p : paths) {
-            out << Importer::importPath(p, dur);
-        }
-        return out;
-    });
-    connect(watcher, &QFutureWatcher<QVector<ImportResult>>::finished, this,
-        [this, watcher]() {
-            auto results = watcher->result();
+    const int total = paths.size();
+    emit statusMessage(QString("Importing %1 file(s)…").arg(total));
+
+    // QtConcurrent::mapped runs Importer::importPath on the global thread
+    // pool, one task per file. importPath shells out to ffprobe / ffmpeg
+    // per file with no shared mutable state, so this parallelises cleanly.
+    const double dur = m_project.defaults.imageDuration;
+    auto worker = [dur](const QString& p) { return Importer::importPath(p, dur); };
+
+    auto* watcher = new QFutureWatcher<ImportResult>(this);
+    auto* lastBucket = new int(-1);   // shared between progress + finished
+
+    connect(watcher, &QFutureWatcher<ImportResult>::progressValueChanged, this,
+        [this, total, lastBucket](int v) {
+            // 5 %-resolution buckets — enough to feel live without flooding
+            // the log on a 2000-file import.
+            int pct = (total > 0) ? int(100.0 * v / total) : 0;
+            int bucket = pct / 5;
+            if (bucket != *lastBucket) {
+                *lastBucket = bucket;
+                emit statusMessage(QString("Importing… %1% (%2 / %3)")
+                    .arg(pct).arg(v).arg(total));
+            }
+        });
+
+    connect(watcher, &QFutureWatcher<ImportResult>::finished, this,
+        [this, watcher, lastBucket]() {
             int added = 0;
-            for (const auto& r : results) {
+            const int n = watcher->future().resultCount();
+            for (int i = 0; i < n; ++i) {
+                const ImportResult& r = watcher->future().resultAt(i);
                 if (!r.ok) {
                     emit statusMessage(tr("Skipped %1: %2")
                                        .arg(QFileInfo(r.error).fileName())
@@ -248,9 +273,11 @@ void MainWindow::importPaths(const QStringList& paths) {
             m_project.sortChronologically();
             emit statusMessage(QString("Imported %1 file(s).").arg(added));
             emit projectChanged();
+            delete lastBucket;
             watcher->deleteLater();
         });
-    watcher->setFuture(fut);
+
+    watcher->setFuture(QtConcurrent::mapped(paths, worker));
 }
 
 Item* MainWindow::findItem(const QUuid& id) {
@@ -261,6 +288,10 @@ Item* MainWindow::findItem(const QUuid& id) {
 void MainWindow::onProjectMutated(bool resort) {
     if (resort) m_project.sortChronologically();
     emit projectChanged();
+}
+
+void MainWindow::onItemMutated(const QUuid& id) {
+    emit itemChanged(id);
 }
 
 void MainWindow::removeItem(const QUuid& id) {
@@ -284,49 +315,49 @@ void MainWindow::setUsed(const QUuid& id, bool used) {
     auto* it = findItem(id);
     if (!it) return;
     it->common().used = used;
-    onProjectMutated(false);
+    onItemMutated(id);
 }
 
 void MainWindow::setSubtitle(const QUuid& id, const QString& s) {
     auto* it = findItem(id);
     if (!it) return;
     it->common().subtitle = s;
-    onProjectMutated(false);
+    onItemMutated(id);
 }
 
 void MainWindow::setImageDuration(const QUuid& id, double secs) {
     auto* it = findItem(id);
     if (!it || it->kind != ItemKind::Image) return;
     it->image.durationSecs = std::max(0.05, secs);
-    onProjectMutated(false);
+    onItemMutated(id);
 }
 
 void MainWindow::setImageCrop(const QUuid& id, const std::optional<QRectF>& rect) {
     auto* it = findItem(id);
     if (!it || it->kind != ItemKind::Image) return;
     it->image.crop = rect;
-    onProjectMutated(false);
+    onItemMutated(id);
 }
 
 void MainWindow::setTextClipText(const QUuid& id, const QString& text) {
     auto* it = findItem(id);
     if (!it || it->kind != ItemKind::TextClip) return;
     it->textClip.text = text;
-    onProjectMutated(false);
+    onItemMutated(id);
 }
 
 void MainWindow::setTextClipDuration(const QUuid& id, double secs) {
     auto* it = findItem(id);
     if (!it || it->kind != ItemKind::TextClip) return;
     it->textClip.durationSecs = std::max(0.05, secs);
-    onProjectMutated(false);
+    onItemMutated(id);
 }
 
 void MainWindow::setTextClipBackground(const QUuid& id, const QString& path) {
     auto* it = findItem(id);
     if (!it || it->kind != ItemKind::TextClip) return;
     it->textClip.backgroundPath = path;
-    onProjectMutated(false);
+    onItemMutated(id);
 }
 
 QUuid MainWindow::addTextClip(const QUuid& referenceId, InsertPosition pos) {
@@ -382,7 +413,7 @@ void MainWindow::setVideoTrim(const QUuid& id, double startSecs, double endSecs)
     if (!it || it->kind != ItemKind::Video) return;
     it->video.startSecs = std::max(0.0, startSecs);
     it->video.endSecs = std::max(it->video.startSecs + 0.001, endSecs);
-    onProjectMutated(false);
+    onItemMutated(id);
 }
 
 void MainWindow::setCanvas(int w, int h, int fps) {

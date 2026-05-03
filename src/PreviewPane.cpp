@@ -70,6 +70,10 @@ void PreviewPane::onSelectionChanged(const QUuid& id) {
     refresh();
 }
 
+void PreviewPane::onItemChanged(const QUuid& id) {
+    if (id == m_id) refresh();
+}
+
 void PreviewPane::refresh() {
     m_image->setProjectCanvas(m_mw->project().canvas.width,
                               m_mw->project().canvas.height);

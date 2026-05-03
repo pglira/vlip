@@ -23,6 +23,8 @@ public:
 public slots:
     void onSelectionChanged(const QUuid& id);
     void refresh();
+    // Refresh only when the changed item is the one we're showing.
+    void onItemChanged(const QUuid& id);
 
 private:
     void buildUi();

@@ -89,6 +89,7 @@ struct Canvas {
 
 enum class SubtitlePosition { Top, Middle, Bottom };
 enum class VerticalAlign { Top, Middle, Bottom };
+enum class Corner { TopLeft, TopRight, BottomLeft, BottomRight };
 
 struct SubtitleStyle {
     QString fontFamily;                  // empty → first available DejaVu / system fallback
@@ -111,11 +112,26 @@ struct TextClipStyle {
     double defaultDuration = 5.0;
 };
 
+// Burn each item's timestamp (formatted DD.MM.YYYY HH:MM) into a corner of
+// the canvas while that item is on screen. White text, no background.
+// Applied only to image and video items (text clips are skipped).
+struct DatestampStyle {
+    bool active = false;
+    QString fontFamily;
+    int fontSizePx = 0;                  // 0 → auto (canvas-relative)
+    Corner corner = Corner::BottomRight;
+    int marginPx = 20;
+};
+
 struct Defaults {
     double imageDuration = 4.0;
     double transitionSecs = 0.5;    // fade-out/fade-in duration between clips; 0 disables
     SubtitleStyle subtitle;
     TextClipStyle textClip;
+    DatestampStyle datestamp;
+    // IANA time-zone id (e.g. "Europe/Vienna"). Empty → system local.
+    // Used to render per-item timestamps in the date-stamp overlay.
+    QByteArray timeZone;
 };
 
 struct Project {

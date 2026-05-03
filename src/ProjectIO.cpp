@@ -200,6 +200,43 @@ TextClipStyle textClipFromJson(const QJsonObject& o) {
     return s;
 }
 
+const char* cornerToString(Corner c) {
+    switch (c) {
+        case Corner::TopLeft:     return "top_left";
+        case Corner::TopRight:    return "top_right";
+        case Corner::BottomLeft:  return "bottom_left";
+        case Corner::BottomRight: return "bottom_right";
+    }
+    return "bottom_right";
+}
+
+Corner cornerFromString(const QString& s) {
+    if (s == "top_left")     return Corner::TopLeft;
+    if (s == "top_right")    return Corner::TopRight;
+    if (s == "bottom_left")  return Corner::BottomLeft;
+    return Corner::BottomRight;
+}
+
+QJsonObject toJson(const DatestampStyle& d) {
+    QJsonObject o;
+    o["active"] = d.active;
+    o["font_family"] = d.fontFamily;
+    o["font_size_px"] = d.fontSizePx;
+    o["corner"] = cornerToString(d.corner);
+    o["margin_px"] = d.marginPx;
+    return o;
+}
+
+DatestampStyle datestampFromJson(const QJsonObject& o) {
+    DatestampStyle d;
+    d.active = o.value("active").toBool(false);
+    d.fontFamily = o.value("font_family").toString();
+    d.fontSizePx = o.value("font_size_px").toInt(0);
+    d.corner = cornerFromString(o.value("corner").toString("bottom_right"));
+    d.marginPx = o.value("margin_px").toInt(20);
+    return d;
+}
+
 } // namespace
 
 bool ProjectIO::save(const Project& p, const QString& path, QString* err) {
@@ -218,6 +255,8 @@ bool ProjectIO::save(const Project& p, const QString& path, QString* err) {
     defaults["transition_secs"] = p.defaults.transitionSecs;
     defaults["subtitle"] = toJson(p.defaults.subtitle);
     defaults["textclip"] = toJson(p.defaults.textClip);
+    defaults["datestamp"] = toJson(p.defaults.datestamp);
+    defaults["time_zone"] = QString::fromUtf8(p.defaults.timeZone);
     root["defaults"] = defaults;
 
     QJsonArray items;
@@ -265,6 +304,12 @@ bool ProjectIO::load(Project* p, const QString& path, QStringList* warnings, QSt
     }
     if (defaults.contains("textclip")) {
         p->defaults.textClip = textClipFromJson(defaults.value("textclip").toObject());
+    }
+    if (defaults.contains("datestamp")) {
+        p->defaults.datestamp = datestampFromJson(defaults.value("datestamp").toObject());
+    }
+    if (defaults.contains("time_zone")) {
+        p->defaults.timeZone = defaults.value("time_zone").toString().toUtf8();
     }
 
     p->items.clear();

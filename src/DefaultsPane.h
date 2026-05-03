@@ -8,6 +8,7 @@ class QDoubleSpinBox;
 class QFontComboBox;
 class QComboBox;
 class QPushButton;
+class QCheckBox;
 
 namespace vlip {
 
@@ -41,6 +42,13 @@ private:
     QPushButton *m_tcFontColor;
     QComboBox *m_tcVAlign;
     QDoubleSpinBox *m_tcDuration;
+    // Date-stamp overlay
+    QCheckBox *m_dsActive;
+    QFontComboBox *m_dsFont;
+    QSpinBox *m_dsFontSize;
+    QComboBox *m_dsCorner;
+    QSpinBox *m_dsMargin;
+    QComboBox *m_timeZone;
     bool m_suspend = false;
 };
 

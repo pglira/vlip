@@ -8,11 +8,15 @@
 #include <QPushButton>
 #include <QHBoxLayout>
 #include <QVBoxLayout>
+#include <QScrollArea>
+#include <QFrame>
 #include <QLabel>
 #include <QFontComboBox>
 #include <QComboBox>
+#include <QCheckBox>
 #include <QSignalBlocker>
 #include <QColorDialog>
+#include <QTimeZone>
 #include <QPainter>
 #include <QPixmap>
 #include <QIcon>
@@ -21,11 +25,24 @@ namespace vlip {
 
 DefaultsPane::DefaultsPane(MainWindow* mw, QWidget* parent)
     : QWidget(parent), m_mw(mw) {
-    auto* outer = new QVBoxLayout(this);
+    // The pane is a QScrollArea wrapping an inner content widget. All
+    // group boxes are children of `inner`; users get a vertical scrollbar
+    // when the dock is shorter than the contents.
+    auto* root = new QVBoxLayout(this);
+    root->setContentsMargins(0, 0, 0, 0);
+    auto* scroll = new QScrollArea(this);
+    scroll->setWidgetResizable(true);
+    scroll->setFrameShape(QFrame::NoFrame);
+    scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    auto* inner = new QWidget;
+    scroll->setWidget(inner);
+    root->addWidget(scroll);
+
+    auto* outer = new QVBoxLayout(inner);
     outer->setContentsMargins(8, 8, 8, 8);
 
     // Canvas group
-    auto* canvas = new QGroupBox(tr("Canvas"), this);
+    auto* canvas = new QGroupBox(tr("Canvas"), inner);
     auto* cLay = new QFormLayout(canvas);
     m_canvasPreset = new QComboBox(canvas);
     // userData: w * 1e9 + h * 1e3 + fps. Negative = "Custom" sentinel.
@@ -247,6 +264,73 @@ DefaultsPane::DefaultsPane(MainWindow* mw, QWidget* parent)
         m_mw->applyTextClipDurationToAll(m_tcDuration->value());
     });
 
+    // Date stamp (per-item timestamp burned into a corner of the canvas)
+    auto* ds = new QGroupBox(tr("Date stamp"), this);
+    auto* dsLay = new QFormLayout(ds);
+    m_dsActive = new QCheckBox(tr("Burn date/time into images and videos"), ds);
+    m_dsActive->setToolTip(tr(
+        "Format: DD.MM.YYYY HH:MM. Each item shows its own timestamp.\n"
+        "Text clips are not stamped."));
+    dsLay->addRow(m_dsActive);
+    m_dsFont = new QFontComboBox(ds);
+    dsLay->addRow(tr("Font:"), m_dsFont);
+    m_dsFontSize = new QSpinBox(ds);
+    m_dsFontSize->setRange(0, 400);
+    m_dsFontSize->setSuffix(" px");
+    m_dsFontSize->setSpecialValueText(tr("auto (canvas-relative)"));
+    dsLay->addRow(tr("Font size:"), m_dsFontSize);
+    m_dsCorner = new QComboBox(ds);
+    m_dsCorner->addItem(tr("Top-left"),     int(Corner::TopLeft));
+    m_dsCorner->addItem(tr("Top-right"),    int(Corner::TopRight));
+    m_dsCorner->addItem(tr("Bottom-left"),  int(Corner::BottomLeft));
+    m_dsCorner->addItem(tr("Bottom-right"), int(Corner::BottomRight));
+    dsLay->addRow(tr("Corner:"), m_dsCorner);
+    m_dsMargin = new QSpinBox(ds);
+    m_dsMargin->setRange(0, 1000);
+    m_dsMargin->setSuffix(" px");
+    dsLay->addRow(tr("Margin:"), m_dsMargin);
+    m_timeZone = new QComboBox(ds);
+    m_timeZone->setEditable(true);
+    m_timeZone->addItem(tr("(system local)"), QString());
+    for (const QByteArray& id : QTimeZone::availableTimeZoneIds()) {
+        m_timeZone->addItem(QString::fromUtf8(id), QString::fromUtf8(id));
+    }
+    m_timeZone->setToolTip(tr("IANA time-zone id used to render the date/time."));
+    dsLay->addRow(tr("Time zone:"), m_timeZone);
+    outer->addWidget(ds);
+
+    auto pushDatestamp = [this]() {
+        if (m_suspend) return;
+        Defaults d = m_mw->project().defaults;
+        d.datestamp.active     = m_dsActive->isChecked();
+        d.datestamp.fontFamily = m_dsFont->currentFont().family();
+        d.datestamp.fontSizePx = m_dsFontSize->value();
+        d.datestamp.corner     = Corner(m_dsCorner->currentData().toInt());
+        d.datestamp.marginPx   = m_dsMargin->value();
+        // Combo's userData stores the IANA id (or empty for "system local").
+        // For an editable combo the user might also type something — fall
+        // back to currentText() if userData is empty AND the field's been
+        // edited.
+        QString tz = m_timeZone->currentData().toString();
+        if (tz.isEmpty()) {
+            QString typed = m_timeZone->currentText().trimmed();
+            if (typed != tr("(system local)")) tz = typed;
+        }
+        d.timeZone = tz.toUtf8();
+        m_mw->setDefaults(d);
+    };
+    connect(m_dsActive, &QCheckBox::toggled, this, [pushDatestamp](bool) { pushDatestamp(); });
+    connect(m_dsFont, &QFontComboBox::currentFontChanged, this,
+            [pushDatestamp](const QFont&) { pushDatestamp(); });
+    connect(m_dsFontSize, qOverload<int>(&QSpinBox::valueChanged), this,
+            [pushDatestamp](int) { pushDatestamp(); });
+    connect(m_dsCorner, qOverload<int>(&QComboBox::currentIndexChanged), this,
+            [pushDatestamp](int) { pushDatestamp(); });
+    connect(m_dsMargin, qOverload<int>(&QSpinBox::valueChanged), this,
+            [pushDatestamp](int) { pushDatestamp(); });
+    connect(m_timeZone, &QComboBox::currentTextChanged, this,
+            [pushDatestamp](const QString&) { pushDatestamp(); });
+
     outer->addStretch(1);
 
     connect(m_transition, qOverload<double>(&QDoubleSpinBox::valueChanged), this,
@@ -298,6 +382,21 @@ void DefaultsPane::refresh() {
     int vIdx = m_tcVAlign->findData(int(p.defaults.textClip.verticalAlign));
     if (vIdx >= 0) m_tcVAlign->setCurrentIndex(vIdx);
     m_tcDuration->setValue(p.defaults.textClip.defaultDuration);
+
+    m_dsActive->setChecked(p.defaults.datestamp.active);
+    if (!p.defaults.datestamp.fontFamily.isEmpty()) {
+        m_dsFont->setCurrentFont(QFont(p.defaults.datestamp.fontFamily));
+    }
+    m_dsFontSize->setValue(p.defaults.datestamp.fontSizePx);
+    int cIdx = m_dsCorner->findData(int(p.defaults.datestamp.corner));
+    if (cIdx >= 0) m_dsCorner->setCurrentIndex(cIdx);
+    m_dsMargin->setValue(p.defaults.datestamp.marginPx);
+    {
+        QString tz = QString::fromUtf8(p.defaults.timeZone);
+        int tzIdx = m_timeZone->findData(tz);
+        if (tzIdx >= 0) m_timeZone->setCurrentIndex(tzIdx);
+        else m_timeZone->setEditText(tz);
+    }
 
     m_suspend = false;
 }

@@ -8,6 +8,7 @@
 #include <QRegularExpression>
 #include <QProcess>
 #include <QDateTime>
+#include <QTimeZone>
 
 namespace vlip {
 
@@ -56,6 +57,53 @@ QString colorToDrawtext(const QColor& c) {
         .arg(c.green(), 2, 16, QChar('0'))
         .arg(c.blue(),  2, 16, QChar('0'))
         .arg(c.alphaF(), 0, 'f', 3);
+}
+
+// Format a stored UTC timestamp using the project's time-zone (or system
+// local if the tz id is empty / invalid). Returns empty for an invalid
+// QDateTime so the caller can skip drawing.
+QString formatDatestamp(const QDateTime& utc, const QByteArray& tzId) {
+    if (!utc.isValid()) return {};
+    QDateTime t = utc;
+    t.setTimeSpec(Qt::UTC);
+    if (tzId.isEmpty()) {
+        t = t.toLocalTime();
+    } else {
+        QTimeZone z(tzId);
+        if (z.isValid()) t = t.toTimeZone(z);
+        else             t = t.toLocalTime();
+    }
+    return t.toString("dd.MM.yyyy HH:mm");
+}
+
+// drawtext filter expression for the corner date stamp. `text` is the
+// pre-formatted DD.MM.YYYY HH:MM string. Returns empty if the style is
+// disabled or text is empty. Operates on canvas coords (post scale+pad)
+// so it lives in a fixed corner of the final video.
+QString datestampDrawText(const QString& text, int canvasH,
+                          const DatestampStyle& s) {
+    if (!s.active || text.isEmpty()) return {};
+    QString font = resolveFontFile(s.fontFamily);
+    int fontSize = s.fontSizePx > 0 ? s.fontSizePx : qMax(14, canvasH / 36);
+    QString chain = "drawtext=";
+    if (!font.isEmpty()) {
+        chain += QString("fontfile='%1':").arg(font);
+    }
+    chain += QString("text='%1'").arg(escapeDrawText(text));
+    chain += ":fontcolor=white";
+    chain += QString(":fontsize=%1").arg(fontSize);
+    int m = std::max(0, s.marginPx);
+    switch (s.corner) {
+        case Corner::TopLeft:
+            chain += QString(":x=%1:y=%1").arg(m); break;
+        case Corner::TopRight:
+            chain += QString(":x=w-text_w-%1:y=%1").arg(m); break;
+        case Corner::BottomLeft:
+            chain += QString(":x=%1:y=h-text_h-%1").arg(m); break;
+        case Corner::BottomRight:
+            chain += QString(":x=w-text_w-%1:y=h-text_h-%1").arg(m); break;
+    }
+    return chain;
 }
 
 QString textClipDrawText(const QString& text, int canvasH,
@@ -286,6 +334,11 @@ QString Renderer::buildAndExecute(const Project& p, const QString& outPath, QStr
             chain += QString(",setsar=1,fps=%1,format=yuv420p").arg(FPS);
             QString dt = drawTextChain(img.common.subtitle, H, p.defaults.subtitle, dur);
             if (!dt.isEmpty()) chain += "," + dt;
+            // Per-item date stamp (canvas-space corner overlay).
+            QString ds = datestampDrawText(
+                formatDatestamp(img.common.timestamp, p.defaults.timeZone),
+                H, p.defaults.datestamp);
+            if (!ds.isEmpty()) chain += "," + ds;
             chain += vFade;
             chain += QString("[%1]").arg(vlabel);
             chains << chain;
@@ -309,6 +362,10 @@ QString Renderer::buildAndExecute(const Project& p, const QString& outPath, QStr
             chain += QString(",setsar=1,fps=%1,format=yuv420p").arg(FPS);
             QString dt = drawTextChain(vid.common.subtitle, H, p.defaults.subtitle, dur);
             if (!dt.isEmpty()) chain += "," + dt;
+            QString ds = datestampDrawText(
+                formatDatestamp(vid.common.timestamp, p.defaults.timeZone),
+                H, p.defaults.datestamp);
+            if (!ds.isEmpty()) chain += "," + ds;
             chain += vFade;
             chain += QString("[%1]").arg(vlabel);
             chains << chain;
