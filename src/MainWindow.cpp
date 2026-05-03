@@ -95,7 +95,15 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     registerShortcut(QKeySequence(Qt::CTRL | Qt::Key_Up),   &MainWindow::selectPrevItem);
     registerShortcut(QKeySequence(Qt::CTRL | Qt::Key_K),    &MainWindow::selectPrevItem);
 
-    registerShortcut(QKeySequence(Qt::CTRL | Qt::Key_Space), &MainWindow::toggleSelectedUsed);
+    registerShortcut(QKeySequence(Qt::CTRL | Qt::Key_Space),       &MainWindow::toggleSelectedUsed);
+    registerShortcut(QKeySequence(Qt::CTRL | Qt::Key_Home),        &MainWindow::selectFirstItem);
+    registerShortcut(QKeySequence(Qt::CTRL | Qt::Key_End),         &MainWindow::selectLastItem);
+    registerShortcut(QKeySequence(Qt::Key_Delete),                 &MainWindow::removeSelectedItem);
+    registerShortcut(QKeySequence(Qt::CTRL | Qt::Key_T),           &MainWindow::addTextClipAfterSelected);
+    registerShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_T),
+                     &MainWindow::addTextClipBeforeSelected);
+    registerShortcut(QKeySequence(Qt::CTRL | Qt::Key_H),           &MainWindow::toggleHideUnused);
+    registerShortcut(QKeySequence(Qt::Key_F2),                     &MainWindow::focusSubtitleEditor);
 
     restoreLayoutAndGeometry();
 }
@@ -133,6 +141,12 @@ void MainWindow::setupPanes() {
     tabifyDockWidget(m_dockProperties, m_dockDefaults);
     m_dockProperties->raise();
     resizeDocks({m_dockPreview, m_dockProperties}, {800, 200}, Qt::Vertical);
+
+    // Ctrl+P toggles the Project settings dock — same action the View
+    // menu uses, so the menu also displays the shortcut next to the
+    // entry.
+    m_dockDefaults->toggleViewAction()->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_P));
+    m_dockDefaults->toggleViewAction()->setShortcutContext(Qt::ApplicationShortcut);
 
     // Provide a "View" menu listing each pane so the user can hide/show.
     auto* viewMenu = menuBar()->addMenu(tr("&View"));
@@ -508,12 +522,60 @@ void MainWindow::selectPrevItem() {
     }
 }
 
+void MainWindow::selectFirstItem() {
+    if (m_project.items.isEmpty()) return;
+    const bool skipUnused = m_timeline && m_timeline->hideUnused();
+    for (int i = 0; i < m_project.items.size(); ++i) {
+        if (!skipUnused || m_project.items[i].common().used) {
+            setSelected(m_project.items[i].common().id);
+            return;
+        }
+    }
+}
+
+void MainWindow::selectLastItem() {
+    if (m_project.items.isEmpty()) return;
+    const bool skipUnused = m_timeline && m_timeline->hideUnused();
+    for (int i = m_project.items.size() - 1; i >= 0; --i) {
+        if (!skipUnused || m_project.items[i].common().used) {
+            setSelected(m_project.items[i].common().id);
+            return;
+        }
+    }
+}
+
 void MainWindow::toggleSelectedUsed() {
     if (m_selectedId.isNull()) return;
     auto* it = findItem(m_selectedId);
     if (!it) return;
     setUsed(m_selectedId, !it->common().used);
 }
+
+void MainWindow::removeSelectedItem() {
+    if (m_selectedId.isNull()) return;
+    removeItem(m_selectedId);
+}
+
+void MainWindow::addTextClipBeforeSelected() {
+    addTextClip(m_selectedId, InsertPosition::Before);
+}
+
+void MainWindow::addTextClipAfterSelected() {
+    addTextClip(m_selectedId, InsertPosition::After);
+}
+
+void MainWindow::toggleHideUnused() {
+    if (m_timeline) m_timeline->toggleHideUnused();
+}
+
+void MainWindow::focusSubtitleEditor() {
+    if (m_dockPreview) {
+        m_dockPreview->show();
+        m_dockPreview->raise();
+    }
+    if (m_preview) m_preview->focusSubtitleEditor();
+}
+
 
 void MainWindow::setVideoTrim(const QUuid& id, double startSecs, double endSecs) {
     auto* it = findItem(id);

@@ -28,6 +28,9 @@ public slots:
 
     // Activates the interactive crop tool on the currently selected image.
     void beginImageCrop();
+    // Move keyboard focus to the subtitle / text-clip text editor and
+    // pre-select its content for fast overwrite.
+    void focusSubtitleEditor();
 
 private:
     // Coloured border around the preview stack, signalling whether the

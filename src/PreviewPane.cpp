@@ -68,6 +68,12 @@ PreviewPane::PreviewPane(MainWindow* mw, QWidget* parent)
     refresh();
 }
 
+void PreviewPane::focusSubtitleEditor() {
+    if (!m_textInput || !m_textInput->isEnabled()) return;
+    m_textInput->setFocus(Qt::ShortcutFocusReason);
+    m_textInput->selectAll();
+}
+
 void PreviewPane::beginImageCrop() {
     if (m_id.isNull()) return;
     int idx = m_mw->project().indexOfId(m_id);

@@ -8,6 +8,7 @@
 class QTreeWidget;
 class QTreeWidgetItem;
 class QLabel;
+class QCheckBox;
 
 namespace vlip {
 
@@ -36,6 +37,8 @@ public:
     // True when the timeline filters out items where used == false.
     // Persisted as a per-user QSettings preference.
     bool hideUnused() const { return m_hideUnused; }
+    void setHideUnused(bool on);
+    void toggleHideUnused() { setHideUnused(!m_hideUnused); }
 
 private slots:
     void onSelectionChanged();
@@ -51,6 +54,7 @@ private:
     MainWindow* m_mw;
     QTreeWidget* m_tree;
     QLabel* m_summary;
+    QCheckBox* m_chkHideUnused;
     // Keyed by thumbPath (or by a synthetic key for text clips). Avoids
     // re-reading + re-scaling the file on every refresh().
     QHash<QString, QIcon> m_iconCache;

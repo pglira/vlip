@@ -60,8 +60,15 @@ public:
     // (Application-scope, so they fire from any focused widget).
     void selectNextItem();
     void selectPrevItem();
-    // Toggle the "used" flag on the selected item. Wired to Ctrl+U.
+    void selectFirstItem();
+    void selectLastItem();
+    // Toggle the "used" flag on the selected item. Wired to Ctrl+Space.
     void toggleSelectedUsed();
+    void removeSelectedItem();
+    void addTextClipBeforeSelected();
+    void addTextClipAfterSelected();
+    void toggleHideUnused();
+    void focusSubtitleEditor();
 
     // Project file lifecycle
     void newProject();

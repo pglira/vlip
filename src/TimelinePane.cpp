@@ -72,23 +72,20 @@ TimelinePane::TimelinePane(MainWindow* mw, QWidget* parent) : QWidget(parent), m
     auto* btnTextAfter = new QPushButton(tr("+ Text ↓"), this);
     btnTextAfter->setToolTip(tr("Insert a text clip just after the selected item"));
     auto* btnRemove = new QPushButton(tr("Remove"), this);
-    auto* chkHideUnused = new QCheckBox(tr("Hide unused"), this);
-    chkHideUnused->setToolTip(tr(
+    m_chkHideUnused = new QCheckBox(tr("Hide unused"), this);
+    m_chkHideUnused->setToolTip(tr(
         "Show only items marked as 'used'. Navigation shortcuts skip hidden items."));
-    chkHideUnused->setChecked(m_hideUnused);
+    m_chkHideUnused->setChecked(m_hideUnused);
     row->addWidget(btnImport);
     row->addWidget(btnTextBefore);
     row->addWidget(btnTextAfter);
     row->addWidget(btnRemove);
     row->addStretch(1);
-    row->addWidget(chkHideUnused);
+    row->addWidget(m_chkHideUnused);
     vbox->addLayout(row);
 
-    connect(chkHideUnused, &QCheckBox::toggled, this, [this](bool on) {
-        if (m_hideUnused == on) return;
-        m_hideUnused = on;
-        QSettings("vlip", "vlip").setValue("timeline/hideUnused", on);
-        refresh();
+    connect(m_chkHideUnused, &QCheckBox::toggled, this, [this](bool on) {
+        setHideUnused(on);
     });
 
     m_tree = new QTreeWidget(this);
@@ -318,6 +315,17 @@ void TimelinePane::onItemChanged(QTreeWidgetItem* it, int col) {
     QUuid id = QUuid::fromString(it->data(0, Qt::UserRole).toString());
     bool used = it->checkState(0) == Qt::Checked;
     m_mw->setUsed(id, used);
+}
+
+void TimelinePane::setHideUnused(bool on) {
+    if (m_hideUnused == on) return;
+    m_hideUnused = on;
+    QSettings("vlip", "vlip").setValue("timeline/hideUnused", on);
+    if (m_chkHideUnused && m_chkHideUnused->isChecked() != on) {
+        QSignalBlocker block(m_chkHideUnused);
+        m_chkHideUnused->setChecked(on);
+    }
+    refresh();
 }
 
 void TimelinePane::updateSummary() {
