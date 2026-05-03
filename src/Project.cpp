@@ -34,7 +34,8 @@ int Project::indexOfId(const QUuid& id) const {
 }
 
 void Project::applyImageDurationAll(double secs) {
-    defaults.imageDuration = secs;
+    // Bulk write to items only; project defaults intentionally untouched
+    // so the bulk action is independent of the Project settings pane.
     for (auto& it : items) {
         if (it.kind == ItemKind::Image) {
             it.image.durationSecs = secs;
@@ -43,7 +44,6 @@ void Project::applyImageDurationAll(double secs) {
 }
 
 void Project::applyTextClipDurationAll(double secs) {
-    defaults.textClip.defaultDuration = secs;
     for (auto& it : items) {
         if (it.kind == ItemKind::TextClip) {
             it.textClip.durationSecs = secs;

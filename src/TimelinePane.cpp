@@ -10,6 +10,7 @@
 #include <QHBoxLayout>
 #include <QCheckBox>
 #include <QFileDialog>
+#include <QLabel>
 #include <QMenu>
 #include <QAction>
 #include <QPainter>
@@ -112,6 +113,13 @@ TimelinePane::TimelinePane(MainWindow* mw, QWidget* parent) : QWidget(parent), m
     m_tree->setColumnWidth(3, 130);   // date
     m_tree->setContextMenuPolicy(Qt::CustomContextMenu);
     vbox->addWidget(m_tree);
+
+    // Status line below the tree: count of used items + total render
+    // duration. Updated on every refresh / refreshRow.
+    m_summary = new QLabel(this);
+    m_summary->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    m_summary->setContentsMargins(4, 2, 4, 2);
+    vbox->addWidget(m_summary);
 
     connect(m_tree, &QTreeWidget::itemSelectionChanged, this, &TimelinePane::onSelectionChanged);
     connect(m_tree, &QTreeWidget::itemChanged, this, &TimelinePane::onItemChanged);
@@ -245,6 +253,7 @@ void TimelinePane::refresh() {
     // Qt sometimes resizes Fixed columns when items are populated; re-pin.
     m_tree->setColumnWidth(0, 28);
     m_suspendSignals = false;
+    updateSummary();
 }
 
 void TimelinePane::refreshRow(const QUuid& id) {
@@ -256,6 +265,7 @@ void TimelinePane::refreshRow(const QUuid& id) {
             int pos = m_tree->indexOfTopLevelItem(row);
             delete m_tree->takeTopLevelItem(pos);
         }
+        updateSummary();
         return;
     }
     const Item& it = m_mw->project().items[idx];
@@ -267,6 +277,7 @@ void TimelinePane::refreshRow(const QUuid& id) {
             int pos = m_tree->indexOfTopLevelItem(row);
             delete m_tree->takeTopLevelItem(pos);
         }
+        updateSummary();
         return;
     }
     if (!row) {
@@ -280,6 +291,7 @@ void TimelinePane::refreshRow(const QUuid& id) {
     m_suspendSignals = true;
     populateRow(row, it);
     m_suspendSignals = false;
+    updateSummary();
 }
 
 void TimelinePane::selectId(const QUuid& id) {
@@ -306,6 +318,24 @@ void TimelinePane::onItemChanged(QTreeWidgetItem* it, int col) {
     QUuid id = QUuid::fromString(it->data(0, Qt::UserRole).toString());
     bool used = it->checkState(0) == Qt::Checked;
     m_mw->setUsed(id, used);
+}
+
+void TimelinePane::updateSummary() {
+    int usedCount = 0;
+    double totalSecs = 0.0;
+    for (const auto& it : m_mw->project().items) {
+        if (!it.common().used) continue;
+        usedCount++;
+        totalSecs += it.effectiveDuration();
+    }
+    int total = int(std::round(totalSecs));
+    int h = total / 3600, m = (total % 3600) / 60, s = total % 60;
+    QString durText = (h > 0)
+        ? QString("%1:%2:%3").arg(h).arg(m, 2, 10, QChar('0')).arg(s, 2, 10, QChar('0'))
+        : QString("%1:%2").arg(m, 2, 10, QChar('0')).arg(s, 2, 10, QChar('0'));
+    int totalCount = m_mw->project().items.size();
+    m_summary->setText(tr("%1 of %2 items used  ·  total %3")
+        .arg(usedCount).arg(totalCount).arg(durText));
 }
 
 QByteArray TimelinePane::saveHeaderState() const {

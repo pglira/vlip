@@ -7,6 +7,7 @@
 
 class QTreeWidget;
 class QTreeWidgetItem;
+class QLabel;
 
 namespace vlip {
 
@@ -45,9 +46,11 @@ private:
     QTreeWidgetItem* findRow(const QUuid& id) const;
     void populateRow(QTreeWidgetItem* row, const Item& it);
     QIcon iconForItem(const Item& it);
+    void updateSummary();
 
     MainWindow* m_mw;
     QTreeWidget* m_tree;
+    QLabel* m_summary;
     // Keyed by thumbPath (or by a synthetic key for text clips). Avoids
     // re-reading + re-scaling the file on every refresh().
     QHash<QString, QIcon> m_iconCache;

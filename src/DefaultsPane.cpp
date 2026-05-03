@@ -119,11 +119,7 @@ DefaultsPane::DefaultsPane(MainWindow* mw, QWidget* parent)
     m_imgDur->setRange(0.1, 600.0);
     m_imgDur->setDecimals(2);
     m_imgDur->setSuffix(" s");
-    auto* applyImgDur = new QPushButton(tr("Apply to all images"), imgs);
-    auto* imgRow = new QHBoxLayout;
-    imgRow->addWidget(m_imgDur);
-    imgRow->addWidget(applyImgDur);
-    iLay->addRow(tr("Default duration:"), imgRow);
+    iLay->addRow(tr("Default duration:"), m_imgDur);
     outer->addWidget(imgs);
 
     connect(m_imgDur, qOverload<double>(&QDoubleSpinBox::valueChanged), this,
@@ -133,9 +129,6 @@ DefaultsPane::DefaultsPane(MainWindow* mw, QWidget* parent)
             d.imageDuration = v;
             m_mw->setDefaults(d);
         });
-    connect(applyImgDur, &QPushButton::clicked, this, [this]() {
-        m_mw->applyImageDurationToAll(m_imgDur->value());
-    });
 
     // Transitions
     auto* trans = new QGroupBox(tr("Transitions"), this);
@@ -231,11 +224,7 @@ DefaultsPane::DefaultsPane(MainWindow* mw, QWidget* parent)
     m_tcDuration->setRange(0.1, 600.0);
     m_tcDuration->setDecimals(2);
     m_tcDuration->setSuffix(" s");
-    auto* applyTcDur = new QPushButton(tr("Apply to all text clips"), tcs);
-    auto* tcDurRow = new QHBoxLayout;
-    tcDurRow->addWidget(m_tcDuration);
-    tcDurRow->addWidget(applyTcDur);
-    tcLay->addRow(tr("Default duration:"), tcDurRow);
+    tcLay->addRow(tr("Default duration:"), m_tcDuration);
     outer->addWidget(tcs);
 
     auto pushTextClip = [this]() {
@@ -260,10 +249,6 @@ DefaultsPane::DefaultsPane(MainWindow* mw, QWidget* parent)
         pickColor(m_tcFontColor, d.textClip.fontColor, /*alpha=*/false);
         m_mw->setDefaults(d);
     });
-    connect(applyTcDur, &QPushButton::clicked, this, [this]() {
-        m_mw->applyTextClipDurationToAll(m_tcDuration->value());
-    });
-
     // Date stamp (per-item timestamp burned into a corner of the canvas)
     auto* ds = new QGroupBox(tr("Date stamp"), this);
     auto* dsLay = new QFormLayout(ds);

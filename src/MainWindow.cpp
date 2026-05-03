@@ -13,6 +13,7 @@
 #include <QMenu>
 #include <QAction>
 #include <QFileDialog>
+#include <QInputDialog>
 #include <QMessageBox>
 #include <QShortcut>
 #include <QKeySequence>
@@ -208,6 +209,42 @@ void MainWindow::setupMenus() {
     auto* aQuit = fileMenu->addAction(tr("&Quit"));
     aQuit->setShortcut(QKeySequence::Quit);
     connect(aQuit, &QAction::triggered, this, &QWidget::close);
+
+    // Edit menu — bulk actions grouped by item kind. Each action prompts
+    // for a duration. The prompt seeds with the last value the user
+    // entered (per-user QSettings), so it's independent of project
+    // defaults; the action does not change the defaults either.
+    auto* editMenu = menuBar()->addMenu(tr("&Edit"));
+
+    auto promptDuration = [this](const QString& title, const QString& label,
+                                 const QString& settingsKey, double fallback) {
+        QSettings s("vlip", "vlip");
+        double seed = s.value(settingsKey, fallback).toDouble();
+        bool ok = false;
+        double v = QInputDialog::getDouble(this, title, label,
+                                            seed, 0.1, 600.0, 2, &ok);
+        if (!ok) return std::optional<double>{};
+        s.setValue(settingsKey, v);
+        return std::optional<double>{v};
+    };
+
+    auto* imagesMenu = editMenu->addMenu(tr("&Images"));
+    auto* aImgApplyDur = imagesMenu->addAction(tr("Apply duration to all items…"));
+    connect(aImgApplyDur, &QAction::triggered, this, [this, promptDuration]() {
+        auto v = promptDuration(tr("Apply duration to all images"),
+                                 tr("Duration (seconds):"),
+                                 "edit/lastImageBulkDuration", 4.0);
+        if (v) applyImageDurationToAll(*v);
+    });
+
+    auto* textMenu = editMenu->addMenu(tr("&Text clips"));
+    auto* aTextApplyDur = textMenu->addAction(tr("Apply duration to all items…"));
+    connect(aTextApplyDur, &QAction::triggered, this, [this, promptDuration]() {
+        auto v = promptDuration(tr("Apply duration to all text clips"),
+                                 tr("Duration (seconds):"),
+                                 "edit/lastTextClipBulkDuration", 5.0);
+        if (v) applyTextClipDurationToAll(*v);
+    });
 }
 
 void MainWindow::persistLayout() {
