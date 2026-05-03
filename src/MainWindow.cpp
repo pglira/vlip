@@ -14,6 +14,8 @@
 #include <QAction>
 #include <QFileDialog>
 #include <QMessageBox>
+#include <QShortcut>
+#include <QKeySequence>
 #include <QSettings>
 #include <QStandardPaths>
 #include <QCloseEvent>
@@ -77,6 +79,22 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
             QMessageBox::critical(this, tr("Render failed"), msg);
         }
     });
+
+    // Application-scope navigation shortcuts. Fire from any focused
+    // widget; a focused QLineEdit / QSpinBox doesn't bind Ctrl+Up/Down,
+    // so they don't get consumed by the editor.
+    auto registerShortcut = [this](const QKeySequence& seq, void (MainWindow::*slot)()) {
+        auto* sc = new QShortcut(seq, this);
+        sc->setContext(Qt::ApplicationShortcut);
+        connect(sc, &QShortcut::activated, this, slot);
+    };
+    // vim-style J/K alongside arrow keys: J = next (down), K = previous (up).
+    registerShortcut(QKeySequence(Qt::CTRL | Qt::Key_Down), &MainWindow::selectNextItem);
+    registerShortcut(QKeySequence(Qt::CTRL | Qt::Key_J),    &MainWindow::selectNextItem);
+    registerShortcut(QKeySequence(Qt::CTRL | Qt::Key_Up),   &MainWindow::selectPrevItem);
+    registerShortcut(QKeySequence(Qt::CTRL | Qt::Key_K),    &MainWindow::selectPrevItem);
+
+    registerShortcut(QKeySequence(Qt::CTRL | Qt::Key_Space), &MainWindow::toggleSelectedUsed);
 
     restoreLayoutAndGeometry();
 }
@@ -196,6 +214,9 @@ void MainWindow::persistLayout() {
     QSettings s("vlip", "vlip");
     s.setValue("mainWindow/geometry", saveGeometry());
     s.setValue("mainWindow/state", saveState());
+    if (m_timeline) {
+        s.setValue("timeline/headerState", m_timeline->saveHeaderState());
+    }
     s.setValue("project/lastPath", m_projectPath);
 }
 
@@ -205,6 +226,9 @@ void MainWindow::restoreLayoutAndGeometry() {
     auto st = s.value("mainWindow/state").toByteArray();
     if (!g.isEmpty()) restoreGeometry(g);
     if (!st.isEmpty()) restoreState(st);
+    if (m_timeline) {
+        m_timeline->restoreHeaderState(s.value("timeline/headerState").toByteArray());
+    }
 }
 
 void MainWindow::closeEvent(QCloseEvent* e) {
@@ -406,6 +430,52 @@ void MainWindow::beginImageCrop() {
         m_dockPreview->raise();  // brings it to the front of any tab group
     }
     if (m_preview) m_preview->beginImageCrop();
+}
+
+void MainWindow::selectNextItem() {
+    if (m_project.items.isEmpty()) return;
+    const bool skipUnused = m_timeline && m_timeline->hideUnused();
+    auto matches = [&](int i) {
+        return !skipUnused || m_project.items[i].common().used;
+    };
+    int idx = m_project.indexOfId(m_selectedId);
+    int n = m_project.items.size();
+    if (idx < 0) {
+        for (int i = 0; i < n; ++i) {
+            if (matches(i)) { setSelected(m_project.items[i].common().id); return; }
+        }
+        return;
+    }
+    for (int i = idx + 1; i < n; ++i) {
+        if (matches(i)) { setSelected(m_project.items[i].common().id); return; }
+    }
+}
+
+void MainWindow::selectPrevItem() {
+    if (m_project.items.isEmpty()) return;
+    const bool skipUnused = m_timeline && m_timeline->hideUnused();
+    auto matches = [&](int i) {
+        return !skipUnused || m_project.items[i].common().used;
+    };
+    int idx = m_project.indexOfId(m_selectedId);
+    if (idx < 0) {
+        // No selection: jump to the last visible item so Ctrl+K from
+        // nowhere lands somewhere sensible.
+        for (int i = m_project.items.size() - 1; i >= 0; --i) {
+            if (matches(i)) { setSelected(m_project.items[i].common().id); return; }
+        }
+        return;
+    }
+    for (int i = idx - 1; i >= 0; --i) {
+        if (matches(i)) { setSelected(m_project.items[i].common().id); return; }
+    }
+}
+
+void MainWindow::toggleSelectedUsed() {
+    if (m_selectedId.isNull()) return;
+    auto* it = findItem(m_selectedId);
+    if (!it) return;
+    setUsed(m_selectedId, !it->common().used);
 }
 
 void MainWindow::setVideoTrim(const QUuid& id, double startSecs, double endSecs) {

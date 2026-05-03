@@ -25,6 +25,17 @@ public slots:
     void refreshRow(const QUuid& id);
     void selectId(const QUuid& id);
 
+public:
+    // Persist / restore the tree-header column widths. The bytes are
+    // QHeaderView::saveState() output. Empty bytes on restore = leave the
+    // current widths alone.
+    QByteArray saveHeaderState() const;
+    void restoreHeaderState(const QByteArray& state);
+
+    // True when the timeline filters out items where used == false.
+    // Persisted as a per-user QSettings preference.
+    bool hideUnused() const { return m_hideUnused; }
+
 private slots:
     void onSelectionChanged();
     void onItemChanged(QTreeWidgetItem* it, int col);
@@ -40,6 +51,7 @@ private:
     // Keyed by thumbPath (or by a synthetic key for text clips). Avoids
     // re-reading + re-scaling the file on every refresh().
     QHash<QString, QIcon> m_iconCache;
+    bool m_hideUnused = false;
     bool m_suspendSignals = false;
 };
 

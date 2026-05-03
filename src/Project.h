@@ -116,7 +116,7 @@ struct TextClipStyle {
 // the canvas while that item is on screen. White text, no background.
 // Applied only to image and video items (text clips are skipped).
 struct DatestampStyle {
-    bool active = false;
+    bool active = true;
     QString fontFamily;
     int fontSizePx = 0;                  // 0 → auto (canvas-relative)
     Corner corner = Corner::BottomRight;

@@ -8,10 +8,12 @@
 #include <QVBoxLayout>
 #include <QPushButton>
 #include <QHBoxLayout>
+#include <QCheckBox>
 #include <QFileDialog>
 #include <QMenu>
 #include <QAction>
 #include <QPainter>
+#include <QSettings>
 #include <QStyledItemDelegate>
 #include <QApplication>
 #include <QPixmap>
@@ -57,6 +59,11 @@ TimelinePane::TimelinePane(MainWindow* mw, QWidget* parent) : QWidget(parent), m
     auto* vbox = new QVBoxLayout(this);
     vbox->setContentsMargins(4, 4, 4, 4);
 
+    {
+        QSettings s("vlip", "vlip");
+        m_hideUnused = s.value("timeline/hideUnused", false).toBool();
+    }
+
     auto* row = new QHBoxLayout;
     auto* btnImport = new QPushButton(tr("Import…"), this);
     auto* btnTextBefore = new QPushButton(tr("+ Text ↑"), this);
@@ -64,12 +71,24 @@ TimelinePane::TimelinePane(MainWindow* mw, QWidget* parent) : QWidget(parent), m
     auto* btnTextAfter = new QPushButton(tr("+ Text ↓"), this);
     btnTextAfter->setToolTip(tr("Insert a text clip just after the selected item"));
     auto* btnRemove = new QPushButton(tr("Remove"), this);
+    auto* chkHideUnused = new QCheckBox(tr("Hide unused"), this);
+    chkHideUnused->setToolTip(tr(
+        "Show only items marked as 'used'. Navigation shortcuts skip hidden items."));
+    chkHideUnused->setChecked(m_hideUnused);
     row->addWidget(btnImport);
     row->addWidget(btnTextBefore);
     row->addWidget(btnTextAfter);
     row->addWidget(btnRemove);
     row->addStretch(1);
+    row->addWidget(chkHideUnused);
     vbox->addLayout(row);
+
+    connect(chkHideUnused, &QCheckBox::toggled, this, [this](bool on) {
+        if (m_hideUnused == on) return;
+        m_hideUnused = on;
+        QSettings("vlip", "vlip").setValue("timeline/hideUnused", on);
+        refresh();
+    });
 
     m_tree = new QTreeWidget(this);
     m_tree->setColumnCount(4);
@@ -78,12 +97,19 @@ TimelinePane::TimelinePane(MainWindow* mw, QWidget* parent) : QWidget(parent), m
     m_tree->setIconSize(QSize(kThumbMaxWidth, kThumbHeight));
     m_tree->setUniformRowHeights(true);
     m_tree->setSelectionMode(QAbstractItemView::SingleSelection);
+    // Columns: ✓ stays fixed-width (it's just a checkbox), the rest are
+    // Interactive so the user can drag dividers. Last-section stretching
+    // is off so users have full control over every column's width.
     m_tree->header()->setMinimumSectionSize(20);
+    m_tree->header()->setStretchLastSection(false);
     m_tree->header()->setSectionResizeMode(0, QHeaderView::Fixed);
-    m_tree->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
-    m_tree->header()->setSectionResizeMode(2, QHeaderView::Stretch);
-    m_tree->header()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
+    m_tree->header()->setSectionResizeMode(1, QHeaderView::Interactive);
+    m_tree->header()->setSectionResizeMode(2, QHeaderView::Interactive);
+    m_tree->header()->setSectionResizeMode(3, QHeaderView::Interactive);
     m_tree->setColumnWidth(0, 28);
+    m_tree->setColumnWidth(1, 110);   // thumb
+    m_tree->setColumnWidth(2, 240);   // filename
+    m_tree->setColumnWidth(3, 130);   // date
     m_tree->setContextMenuPolicy(Qt::CustomContextMenu);
     vbox->addWidget(m_tree);
 
@@ -205,6 +231,7 @@ void TimelinePane::refresh() {
     m_suspendSignals = true;
     m_tree->clear();
     for (const auto& it : m_mw->project().items) {
+        if (m_hideUnused && !it.common().used) continue;
         // Build the item detached, configure flags + check state BEFORE
         // attaching to the tree. Avoids a Qt6 quirk where setCheckState()
         // immediately after `new QTreeWidgetItem(parent)` is sometimes
@@ -221,22 +248,37 @@ void TimelinePane::refresh() {
 }
 
 void TimelinePane::refreshRow(const QUuid& id) {
+    int idx = m_mw->project().indexOfId(id);
     auto* row = findRow(id);
-    if (!row) {
-        // Row absent — caller should have used refresh(). Fall back so we
-        // don't silently drop the update.
-        refresh();
+    if (idx < 0) {
+        // Item gone from the project — drop the row if present.
+        if (row) {
+            int pos = m_tree->indexOfTopLevelItem(row);
+            delete m_tree->takeTopLevelItem(pos);
+        }
         return;
     }
-    int idx = m_mw->project().indexOfId(id);
-    if (idx < 0) {
-        // Item is gone; rebuild handles removal.
+    const Item& it = m_mw->project().items[idx];
+    bool shouldBeVisible = !(m_hideUnused && !it.common().used);
+    if (!shouldBeVisible) {
+        // The item was just toggled off and the filter is on — remove it
+        // from the tree.
+        if (row) {
+            int pos = m_tree->indexOfTopLevelItem(row);
+            delete m_tree->takeTopLevelItem(pos);
+        }
+        return;
+    }
+    if (!row) {
+        // Item is supposed to be visible but isn't in the tree (typically
+        // it was hidden, then re-marked used). Fall back to a full refresh
+        // — re-inserting at the right position is what refresh() does.
         refresh();
         return;
     }
     QSignalBlocker treeBlock(m_tree);
     m_suspendSignals = true;
-    populateRow(row, m_mw->project().items[idx]);
+    populateRow(row, it);
     m_suspendSignals = false;
 }
 
@@ -264,6 +306,19 @@ void TimelinePane::onItemChanged(QTreeWidgetItem* it, int col) {
     QUuid id = QUuid::fromString(it->data(0, Qt::UserRole).toString());
     bool used = it->checkState(0) == Qt::Checked;
     m_mw->setUsed(id, used);
+}
+
+QByteArray TimelinePane::saveHeaderState() const {
+    return m_tree->header()->saveState();
+}
+
+void TimelinePane::restoreHeaderState(const QByteArray& state) {
+    if (state.isEmpty()) return;
+    m_tree->header()->restoreState(state);
+    // The checkbox column should always stay fixed at 28 px no matter
+    // what the saved state had; restore can otherwise leave it stale.
+    m_tree->header()->setSectionResizeMode(0, QHeaderView::Fixed);
+    m_tree->setColumnWidth(0, 28);
 }
 
 void TimelinePane::onContextMenu(const QPoint& pt) {

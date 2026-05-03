@@ -229,7 +229,7 @@ QJsonObject toJson(const DatestampStyle& d) {
 
 DatestampStyle datestampFromJson(const QJsonObject& o) {
     DatestampStyle d;
-    d.active = o.value("active").toBool(false);
+    d.active = o.value("active").toBool(true);
     d.fontFamily = o.value("font_family").toString();
     d.fontSizePx = o.value("font_size_px").toInt(0);
     d.corner = cornerFromString(o.value("corner").toString("bottom_right"));

@@ -9,6 +9,7 @@
 #include <QVBoxLayout>
 #include <QLineEdit>
 #include <QLabel>
+#include <QFrame>
 
 namespace vlip {
 
@@ -18,8 +19,19 @@ PreviewPane::PreviewPane(MainWindow* mw, QWidget* parent)
     v->setContentsMargins(0, 0, 0, 0);
     v->setSpacing(0);
 
-    m_stack = new QStackedWidget(this);
-    v->addWidget(m_stack, 1);
+    // The preview stack lives inside a QFrame whose border colour reflects
+    // the selected item's "used" state — green when used, dim grey when
+    // unused, faint red when the source file is missing. The frame's
+    // padding doubles as the visible border thickness.
+    m_previewFrame = new QFrame(this);
+    m_previewFrame->setObjectName("PreviewFrame");
+    auto* frameLay = new QVBoxLayout(m_previewFrame);
+    frameLay->setContentsMargins(0, 0, 0, 0);
+    frameLay->setSpacing(0);
+    v->addWidget(m_previewFrame, 1);
+
+    m_stack = new QStackedWidget(m_previewFrame);
+    frameLay->addWidget(m_stack);
 
     m_image = new ImagePreviewWidget(this);
     m_video = new VideoPreviewWidget(mw, this);
@@ -38,6 +50,9 @@ PreviewPane::PreviewPane(MainWindow* mw, QWidget* parent)
     m_textInput->setEnabled(false);
     v->addWidget(m_textInput);
 
+    // Pressing Enter commits and drops focus back to the preview pane,
+    // matching the user's expectation of "I'm done editing".
+    connect(m_textInput, &QLineEdit::returnPressed, m_textInput, &QWidget::clearFocus);
     connect(m_textInput, &QLineEdit::editingFinished, this, [this]() {
         if (m_suspend || m_id.isNull()) return;
         if (m_isTextClip) m_mw->setTextClipText(m_id, m_textInput->text());
@@ -74,6 +89,19 @@ void PreviewPane::onItemChanged(const QUuid& id) {
     if (id == m_id) refresh();
 }
 
+void PreviewPane::updateUsedFrame(bool present, bool used, bool missing) {
+    // Stylesheet on object-name selector so it doesn't bleed onto child
+    // widgets. 3 px border so it's noticeable peripherally without
+    // crowding the preview area.
+    QString colour;
+    if (!present)      colour = "#3a3a3a";       // nothing selected
+    else if (missing)  colour = "#c34a4a";       // source missing
+    else if (used)     colour = "#5dbb63";       // green = will be rendered
+    else               colour = "#7a7a7a";       // grey = skipped
+    m_previewFrame->setStyleSheet(
+        QString("QFrame#PreviewFrame { border: 3px solid %1; }").arg(colour));
+}
+
 void PreviewPane::refresh() {
     m_image->setProjectCanvas(m_mw->project().canvas.width,
                               m_mw->project().canvas.height);
@@ -88,10 +116,13 @@ void PreviewPane::refresh() {
         m_textInput->setPlaceholderText(tr("Subtitle"));
         m_textInput->setEnabled(false);
         m_stack->setCurrentIndex(3);
+        updateUsedFrame(false, false, false);
         m_suspend = false;
         return;
     }
     const Item& it = m_mw->project().items[idx];
+    const bool missing = (it.kind != ItemKind::TextClip) && it.common().sourceMissing;
+    updateUsedFrame(true, it.common().used, missing);
 
     // The line edit doubles as: subtitle editor for image/video; text
     // editor for text clips. Choose binding based on selected kind.
@@ -106,7 +137,7 @@ void PreviewPane::refresh() {
         m_textInput->setEnabled(!it.common().sourceMissing);
     }
 
-    if (it.kind != ItemKind::TextClip && it.common().sourceMissing) {
+    if (missing) {
         m_image->clear();
         m_video->clear();
         m_text->clear();

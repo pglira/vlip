@@ -5,6 +5,7 @@
 
 class QStackedWidget;
 class QLineEdit;
+class QFrame;
 
 namespace vlip {
 
@@ -29,10 +30,15 @@ public slots:
     void beginImageCrop();
 
 private:
+    // Coloured border around the preview stack, signalling whether the
+    // displayed item is used (will be in the render) or not.
+    void updateUsedFrame(bool present, bool used, bool missing);
+
     MainWindow* m_mw;
     QUuid m_id;
     bool m_isTextClip = false;            // governs how m_textInput commits
     QLineEdit* m_textInput;               // dual-purpose: subtitle / textclip text
+    QFrame* m_previewFrame;               // hosts the stack; styled by used state
     QStackedWidget* m_stack;
     ImagePreviewWidget* m_image;
     VideoPreviewWidget* m_video;

@@ -56,6 +56,13 @@ public:
     // currently selected image item.
     void beginImageCrop();
 
+    // Move the timeline selection. Wired to Ctrl+Down / Ctrl+Up shortcuts
+    // (Application-scope, so they fire from any focused widget).
+    void selectNextItem();
+    void selectPrevItem();
+    // Toggle the "used" flag on the selected item. Wired to Ctrl+U.
+    void toggleSelectedUsed();
+
     // Project file lifecycle
     void newProject();
     void openProject();

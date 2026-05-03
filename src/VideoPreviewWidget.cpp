@@ -13,6 +13,7 @@
 #include <QStyleOptionSlider>
 #include <QStyle>
 #include <QMouseEvent>
+#include <QShortcut>
 #include <QSignalBlocker>
 #include <QDebug>
 
@@ -229,12 +230,25 @@ VideoPreviewWidget::VideoPreviewWidget(MainWindow* mw, QWidget* parent)
     row2->addStretch(1);
     v->addLayout(row2);
 
-    connect(m_btnPlay, &QPushButton::clicked, this, [this]() {
+    auto togglePlay = [this]() {
+        if (m_loadedPath.isEmpty()) return;     // no media loaded
         if (m_player->playbackState() == QMediaPlayer::PlayingState) {
             m_player->pause();
         } else {
             m_player->play();
         }
+    };
+    connect(m_btnPlay, &QPushButton::clicked, this, togglePlay);
+
+    // Spacebar toggles play / pause when the video preview is the visible
+    // page of the preview stack. WindowShortcut so it fires regardless of
+    // which sibling widget has focus, and we guard on isVisible() so it's
+    // a no-op while an image / text-clip is being previewed instead.
+    auto* scSpace = new QShortcut(QKeySequence(Qt::Key_Space), this);
+    scSpace->setContext(Qt::WindowShortcut);
+    connect(scSpace, &QShortcut::activated, this, [this, togglePlay]() {
+        if (!isVisible()) return;
+        togglePlay();
     });
     connect(m_btnHome, &QPushButton::clicked, this, [this]() {
         m_player->setPosition(0);
