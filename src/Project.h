@@ -73,9 +73,7 @@ struct SubtitleStyle {
 
 struct Defaults {
     double imageDuration = 4.0;
-    double videoTrimStart = 0.0;    // last bulk values (informational)
-    double videoTrimEnd = 0.0;
-    double transitionSecs = 0.0;    // fade-out/fade-in duration between clips; 0 disables
+    double transitionSecs = 0.5;    // fade-out/fade-in duration between clips; 0 disables
     SubtitleStyle subtitle;
 };
 
@@ -88,8 +86,6 @@ struct Project {
     void sortChronologically();
     int indexOfId(const QUuid& id) const;
     void applyImageDurationAll(double secs);
-    void trimVideoStartAll(double secs);
-    void trimVideoEndAll(double secs);
 };
 
 } // namespace vlip

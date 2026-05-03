@@ -65,13 +65,8 @@ int main(int argc, char** argv) {
 
     auto* renderer = new vlip::Renderer(&app);
     int exitCode = -1;
-    QObject::connect(renderer, &vlip::Renderer::progress, [](double f) {
-        std::fprintf(stderr, "  progress %.1f%%\r", f * 100);
-    });
     QObject::connect(renderer, &vlip::Renderer::log, [](const QString& s) {
-        if (s.contains("error", Qt::CaseInsensitive)) {
-            std::fprintf(stderr, "[ffmpeg] %s\n", qPrintable(s));
-        }
+        std::fprintf(stderr, "[renderer] %s\n", qPrintable(s));
     });
     QObject::connect(renderer, &vlip::Renderer::finished, &app,
         [&app, &exitCode, out](bool ok, const QString& msg) {

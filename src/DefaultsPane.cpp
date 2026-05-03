@@ -11,6 +11,7 @@
 #include <QLabel>
 #include <QFontComboBox>
 #include <QComboBox>
+#include <QSignalBlocker>
 #include <QColorDialog>
 #include <QPainter>
 #include <QPixmap>
@@ -26,6 +27,18 @@ DefaultsPane::DefaultsPane(MainWindow* mw, QWidget* parent)
     // Canvas group
     auto* canvas = new QGroupBox(tr("Canvas"), this);
     auto* cLay = new QFormLayout(canvas);
+    m_canvasPreset = new QComboBox(canvas);
+    // userData: w * 1e9 + h * 1e3 + fps. Negative = "Custom" sentinel.
+    auto encode = [](int w, int h, int fps) {
+        return qint64(w) * 1'000'000'000LL + qint64(h) * 1'000LL + qint64(fps);
+    };
+    m_canvasPreset->addItem(tr("Custom"), qint64(-1));
+    m_canvasPreset->addItem(tr("Full HD (1920×1080) — 30 fps"), encode(1920, 1080, 30));
+    m_canvasPreset->addItem(tr("Full HD (1920×1080) — 60 fps"), encode(1920, 1080, 60));
+    m_canvasPreset->addItem(tr("4K UHD (3840×2160) — 30 fps"), encode(3840, 2160, 30));
+    m_canvasPreset->addItem(tr("4K UHD (3840×2160) — 60 fps"), encode(3840, 2160, 60));
+    cLay->addRow(tr("Preset:"), m_canvasPreset);
+
     m_w = new QSpinBox(canvas);
     m_w->setRange(64, 8192);
     m_w->setSingleStep(2);
@@ -39,13 +52,48 @@ DefaultsPane::DefaultsPane(MainWindow* mw, QWidget* parent)
     cLay->addRow(tr("FPS:"), m_fps);
     outer->addWidget(canvas);
 
-    auto pushCanvas = [this]() {
+    auto syncPresetCombo = [this]() {
+        // Find a preset matching the current spinboxes; otherwise show "Custom".
+        for (int i = 1; i < m_canvasPreset->count(); ++i) {
+            qint64 enc = m_canvasPreset->itemData(i).toLongLong();
+            int w = int(enc / 1'000'000'000LL);
+            int h = int((enc / 1'000LL) % 1'000'000LL);
+            int f = int(enc % 1'000LL);
+            if (w == m_w->value() && h == m_h->value() && f == m_fps->value()) {
+                m_canvasPreset->setCurrentIndex(i);
+                return;
+            }
+        }
+        m_canvasPreset->setCurrentIndex(0); // Custom
+    };
+
+    auto pushCanvas = [this, syncPresetCombo]() {
         if (m_suspend) return;
         m_mw->setCanvas(m_w->value(), m_h->value(), m_fps->value());
+        QSignalBlocker b(m_canvasPreset);
+        syncPresetCombo();
     };
     connect(m_w, qOverload<int>(&QSpinBox::valueChanged), this, pushCanvas);
     connect(m_h, qOverload<int>(&QSpinBox::valueChanged), this, pushCanvas);
     connect(m_fps, qOverload<int>(&QSpinBox::valueChanged), this, pushCanvas);
+
+    connect(m_canvasPreset, qOverload<int>(&QComboBox::currentIndexChanged), this,
+        [this](int idx) {
+            if (m_suspend) return;
+            qint64 enc = m_canvasPreset->itemData(idx).toLongLong();
+            if (enc < 0) return;        // "Custom" — leave fields alone
+            int w = int(enc / 1'000'000'000LL);
+            int h = int((enc / 1'000LL) % 1'000'000LL);
+            int f = int(enc % 1'000LL);
+            // Suspend so each spinbox change doesn't fire pushCanvas thrice
+            // and re-snap the combo to "Custom" mid-update.
+            m_suspend = true;
+            m_w->setValue(w);
+            m_h->setValue(h);
+            m_fps->setValue(f);
+            m_suspend = false;
+            m_mw->setCanvas(w, h, f);
+        });
 
     // Image defaults
     auto* imgs = new QGroupBox(tr("Images"), this);
@@ -71,33 +119,6 @@ DefaultsPane::DefaultsPane(MainWindow* mw, QWidget* parent)
     connect(applyImgDur, &QPushButton::clicked, this, [this]() {
         m_mw->applyImageDurationToAll(m_imgDur->value());
     });
-
-    // Video defaults
-    auto* vids = new QGroupBox(tr("Videos (bulk)"), this);
-    auto* vLay = new QFormLayout(vids);
-    m_vidTrimStart = new QDoubleSpinBox(vids);
-    m_vidTrimStart->setRange(0.0, 100000.0);
-    m_vidTrimStart->setDecimals(3);
-    m_vidTrimStart->setSuffix(" s");
-    auto* applyTS = new QPushButton(tr("Trim N from START of every video"), vids);
-
-    m_vidTrimEnd = new QDoubleSpinBox(vids);
-    m_vidTrimEnd->setRange(0.0, 100000.0);
-    m_vidTrimEnd->setDecimals(3);
-    m_vidTrimEnd->setSuffix(" s");
-    auto* applyTE = new QPushButton(tr("Trim N from END of every video"), vids);
-
-    auto* tsRow = new QHBoxLayout;
-    tsRow->addWidget(m_vidTrimStart);
-    tsRow->addWidget(applyTS);
-    auto* teRow = new QHBoxLayout;
-    teRow->addWidget(m_vidTrimEnd);
-    teRow->addWidget(applyTE);
-
-    vLay->addRow(tr("Trim start:"), tsRow);
-    vLay->addRow(tr("Trim end:"), teRow);
-
-    outer->addWidget(vids);
 
     // Transitions
     auto* trans = new QGroupBox(tr("Transitions"), this);
@@ -161,12 +182,6 @@ DefaultsPane::DefaultsPane(MainWindow* mw, QWidget* parent)
 
     outer->addStretch(1);
 
-    connect(applyTS, &QPushButton::clicked, this, [this]() {
-        m_mw->trimVideoStartAll(m_vidTrimStart->value());
-    });
-    connect(applyTE, &QPushButton::clicked, this, [this]() {
-        m_mw->trimVideoEndAll(m_vidTrimEnd->value());
-    });
     connect(m_transition, qOverload<double>(&QDoubleSpinBox::valueChanged), this,
         [this](double v) {
             if (m_suspend) return;
@@ -184,9 +199,18 @@ void DefaultsPane::refresh() {
     m_w->setValue(p.canvas.width);
     m_h->setValue(p.canvas.height);
     m_fps->setValue(p.canvas.fps);
+    int presetIdx = 0;  // Custom by default
+    for (int i = 1; i < m_canvasPreset->count(); ++i) {
+        qint64 enc = m_canvasPreset->itemData(i).toLongLong();
+        int w = int(enc / 1'000'000'000LL);
+        int h = int((enc / 1'000LL) % 1'000'000LL);
+        int f = int(enc % 1'000LL);
+        if (w == p.canvas.width && h == p.canvas.height && f == p.canvas.fps) {
+            presetIdx = i; break;
+        }
+    }
+    m_canvasPreset->setCurrentIndex(presetIdx);
     m_imgDur->setValue(p.defaults.imageDuration);
-    m_vidTrimStart->setValue(p.defaults.videoTrimStart);
-    m_vidTrimEnd->setValue(p.defaults.videoTrimEnd);
     m_transition->setValue(p.defaults.transitionSecs);
 
     if (!p.defaults.subtitle.fontFamily.isEmpty()) {

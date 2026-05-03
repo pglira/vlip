@@ -38,15 +38,18 @@ TimelinePane::TimelinePane(MainWindow* mw, QWidget* parent) : QWidget(parent), m
     vbox->addLayout(row);
 
     m_tree = new QTreeWidget(this);
-    m_tree->setColumnCount(3);
-    m_tree->setHeaderLabels({tr("✓"), tr("Thumb"), tr("Filename")});
+    m_tree->setColumnCount(4);
+    m_tree->setHeaderLabels({QString(), tr("Thumb"), tr("Filename"), tr("Date")});
     m_tree->setRootIsDecorated(false);
     m_tree->setIconSize(QSize(kThumbMaxWidth, kThumbHeight));
     m_tree->setUniformRowHeights(true);
     m_tree->setSelectionMode(QAbstractItemView::SingleSelection);
-    m_tree->header()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    m_tree->header()->setMinimumSectionSize(20);
+    m_tree->header()->setSectionResizeMode(0, QHeaderView::Fixed);
     m_tree->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
     m_tree->header()->setSectionResizeMode(2, QHeaderView::Stretch);
+    m_tree->header()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
+    m_tree->setColumnWidth(0, 28);
     m_tree->setContextMenuPolicy(Qt::CustomContextMenu);
     vbox->addWidget(m_tree);
 
@@ -76,13 +79,21 @@ TimelinePane::TimelinePane(MainWindow* mw, QWidget* parent) : QWidget(parent), m
 }
 
 void TimelinePane::refresh() {
+    // Block signals on the tree so setCheckState() / setText() don't fire
+    // itemChanged → setUsed feedback. Using QSignalBlocker is more robust
+    // than the m_suspendSignals flag (covers signals we forgot to gate).
+    QSignalBlocker treeBlock(m_tree);
     m_suspendSignals = true;
     m_tree->clear();
     for (const auto& it : m_mw->project().items) {
-        auto* row = new QTreeWidgetItem(m_tree);
-        row->setData(0, Qt::UserRole, it.common().id.toString());
+        // Build the item detached, configure flags + check state BEFORE
+        // attaching to the tree. Avoids a Qt6 quirk where setCheckState()
+        // immediately after `new QTreeWidgetItem(parent)` is sometimes
+        // ignored visually.
+        auto* row = new QTreeWidgetItem;
         row->setFlags(row->flags() | Qt::ItemIsUserCheckable);
         row->setCheckState(0, it.common().used ? Qt::Checked : Qt::Unchecked);
+        row->setData(0, Qt::UserRole, it.common().id.toString());
         if (!it.common().thumbPath.isEmpty()) {
             QPixmap pm(it.common().thumbPath);
             if (!pm.isNull()) {
@@ -97,6 +108,15 @@ void TimelinePane::refresh() {
         if (it.common().sourceMissing) fname += "  [missing]";
         row->setText(2, fname);
 
+        QDateTime ts = it.common().timestamp;
+        QString dateText;
+        if (ts.isValid()) {
+            ts.setTimeSpec(Qt::UTC);
+            dateText = ts.toLocalTime().toString("yyyy-MM-dd HH:mm");
+        }
+        if (it.common().timestampUncertain) dateText += "  ?";
+        row->setText(3, dateText);
+
         if (!it.common().used) {
             QBrush dim(QColor(140, 140, 140));
             for (int c = 0; c < m_tree->columnCount(); ++c) {
@@ -106,9 +126,12 @@ void TimelinePane::refresh() {
         if (it.common().sourceMissing) {
             row->setForeground(2, QBrush(QColor(200, 70, 70)));
         }
+        m_tree->addTopLevelItem(row);
     }
     QUuid sel = m_mw->selectedId();
     if (!sel.isNull()) selectId(sel);
+    // Qt sometimes resizes Fixed columns when items are populated; re-pin.
+    m_tree->setColumnWidth(0, 28);
     m_suspendSignals = false;
 }
 

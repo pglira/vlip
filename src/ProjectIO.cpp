@@ -1,4 +1,5 @@
 #include "ProjectIO.h"
+#include "ThumbnailCache.h"
 
 #include <QFile>
 #include <QFileInfo>
@@ -144,8 +145,6 @@ bool ProjectIO::save(const Project& p, const QString& path, QString* err) {
 
     QJsonObject defaults;
     defaults["image_duration"] = p.defaults.imageDuration;
-    defaults["video_trim_start"] = p.defaults.videoTrimStart;
-    defaults["video_trim_end"] = p.defaults.videoTrimEnd;
     defaults["transition_secs"] = p.defaults.transitionSecs;
     defaults["subtitle"] = toJson(p.defaults.subtitle);
     root["defaults"] = defaults;
@@ -189,9 +188,7 @@ bool ProjectIO::load(Project* p, const QString& path, QStringList* warnings, QSt
 
     auto defaults = root.value("defaults").toObject();
     p->defaults.imageDuration = defaults.value("image_duration").toDouble(4.0);
-    p->defaults.videoTrimStart = defaults.value("video_trim_start").toDouble(0.0);
-    p->defaults.videoTrimEnd = defaults.value("video_trim_end").toDouble(0.0);
-    p->defaults.transitionSecs = defaults.value("transition_secs").toDouble(0.0);
+    p->defaults.transitionSecs = defaults.value("transition_secs").toDouble(0.5);
     if (defaults.contains("subtitle")) {
         p->defaults.subtitle = subtitleFromJson(defaults.value("subtitle").toObject());
     }
@@ -204,6 +201,12 @@ bool ProjectIO::load(Project* p, const QString& path, QStringList* warnings, QSt
             if (warnings) {
                 warnings->append(QStringLiteral("Source file missing: %1").arg(it.common().sourcePath));
             }
+        } else {
+            // thumbPath is a derived path (keyed by mtime/size) — never
+            // serialized. Repopulate from the cache, regenerating if needed.
+            const bool isVideo = (it.kind == ItemKind::Video);
+            it.common().thumbPath =
+                ThumbnailCache::getOrCreate(it.common().sourcePath, isVideo, 256);
         }
         p->items.append(it);
     }

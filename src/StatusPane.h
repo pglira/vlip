@@ -3,8 +3,6 @@
 #include <QWidget>
 
 class QPlainTextEdit;
-class QProgressBar;
-class QLabel;
 
 namespace vlip {
 
@@ -20,12 +18,9 @@ public:
 
 public slots:
     void appendMessage(const QString& s, int level = Info);
-    void setProgress(double frac);
 
 private:
     QPlainTextEdit* m_log;
-    QProgressBar* m_bar;
-    QLabel* m_pct;
 };
 
 } // namespace vlip

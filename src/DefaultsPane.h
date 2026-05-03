@@ -26,9 +26,9 @@ private:
     void paintSwatch(QPushButton* btn, const QColor& c);
 
     MainWindow* m_mw;
+    QComboBox *m_canvasPreset;
     QSpinBox *m_w, *m_h, *m_fps;
     QDoubleSpinBox *m_imgDur;
-    QDoubleSpinBox *m_vidTrimStart, *m_vidTrimEnd;
     QDoubleSpinBox *m_transition;
     QFontComboBox *m_fontFamily;
     QSpinBox *m_fontSize;

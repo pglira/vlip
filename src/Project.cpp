@@ -36,23 +36,4 @@ void Project::applyImageDurationAll(double secs) {
     }
 }
 
-void Project::trimVideoStartAll(double secs) {
-    defaults.videoTrimStart = secs;
-    for (auto& it : items) {
-        if (it.kind == ItemKind::Video) {
-            it.video.startSecs = std::min(secs, it.video.sourceDurationSecs);
-        }
-    }
-}
-
-void Project::trimVideoEndAll(double secs) {
-    defaults.videoTrimEnd = secs;
-    for (auto& it : items) {
-        if (it.kind == ItemKind::Video) {
-            double trimmed = std::max(0.0, it.video.sourceDurationSecs - secs);
-            it.video.endSecs = trimmed;
-        }
-    }
-}
-
 } // namespace vlip

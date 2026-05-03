@@ -54,13 +54,9 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     connect(this, &MainWindow::selectionChanged, m_preview, &PreviewPane::onSelectionChanged);
     connect(this, &MainWindow::selectionChanged, m_timeline, &TimelinePane::selectId);
     connect(this, &MainWindow::statusMessage, m_status, &StatusPane::appendMessage);
-    connect(this, &MainWindow::renderProgress, m_status, &StatusPane::setProgress);
 
     connect(m_renderer, &Renderer::log, this, [this](const QString& s) {
         emit statusMessage(s);
-    });
-    connect(m_renderer, &Renderer::progress, this, [this](double f) {
-        emit renderProgress(f);
     });
     connect(m_renderer, &Renderer::finished, this, [this](bool ok, const QString& msg) {
         if (ok) {
@@ -329,14 +325,6 @@ void MainWindow::applyImageDurationToAll(double secs) {
     m_project.applyImageDurationAll(secs);
     onProjectMutated(false);
 }
-void MainWindow::trimVideoStartAll(double secs) {
-    m_project.trimVideoStartAll(secs);
-    onProjectMutated(false);
-}
-void MainWindow::trimVideoEndAll(double secs) {
-    m_project.trimVideoEndAll(secs);
-    onProjectMutated(false);
-}
 
 QString MainWindow::defaultProjectsDir() const {
     return QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
@@ -413,7 +401,6 @@ void MainWindow::renderTo() {
     if (out.isEmpty()) return;
     if (!out.endsWith(".mp4", Qt::CaseInsensitive)) out += ".mp4";
     emit statusMessage(tr("Rendering to %1…").arg(out));
-    emit renderProgress(0.0);
     m_renderer->start(m_project, out);
 }
 

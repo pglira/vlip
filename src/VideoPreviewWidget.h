@@ -74,16 +74,10 @@ private:
     void rebuildLabels();
     void setPlayButtonText();
 
-    // First-frame priming: when a new clip is opened we want the trim-start
-    // frame visible without audible playback. Sequence:
-    //   setItem  → m_pendingFirstFrameMs = startMs
-    //   onMediaStatusChanged(Buffered) → mute, seek, play(), set m_priming
-    //   onPositionChanged (first tick after play) → pause(), unmute,
-    //                                                 clear m_priming
-    // Splitting the play/pause across two events avoids a Qt6+GStreamer race
-    // where issuing them synchronously leaves the pipeline stuck Playing.
-    qint64 m_pendingFirstFrameMs = -1;
-    bool m_priming = false;
+    // Set on setItem(); applied as setPosition() once the media reports
+    // BufferedMedia so a later Play click starts from the trim-start.
+    // Does NOT trigger any playback.
+    qint64 m_seekOnLoadMs = -1;
 
     MainWindow* m_mw;
     QUuid m_id;

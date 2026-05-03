@@ -195,14 +195,16 @@ VideoPreviewWidget::VideoPreviewWidget(MainWindow* mw, QWidget* parent)
     v->addWidget(m_scrub);
 
     auto* row = new QHBoxLayout;
-    m_btnHome = new QPushButton(tr("⏮"), this);
+    QStyle* st = style();
+    m_btnHome = new QPushButton(st->standardIcon(QStyle::SP_MediaSkipBackward), QString(), this);
     m_btnHome->setToolTip(tr("Jump to source start"));
-    m_btnPlay = new QPushButton(tr("▶ Play"), this);
-    m_btnEnd  = new QPushButton(tr("⏭"), this);
+    m_btnPlay = new QPushButton(st->standardIcon(QStyle::SP_MediaPlay), QString(), this);
+    m_btnPlay->setToolTip(tr("Play / pause"));
+    m_btnEnd  = new QPushButton(st->standardIcon(QStyle::SP_MediaSkipForward), QString(), this);
     m_btnEnd->setToolTip(tr("Jump to source end"));
-    m_btnGoStart = new QPushButton(tr("⇤ Clip start"), this);
+    m_btnGoStart = new QPushButton(tr("Clip start"), this);
     m_btnGoStart->setToolTip(tr("Jump to the trim-start of this clip"));
-    m_btnGoEnd   = new QPushButton(tr("Clip end ⇥"), this);
+    m_btnGoEnd   = new QPushButton(tr("Clip end"), this);
     m_btnGoEnd->setToolTip(tr("Jump to the trim-end of this clip"));
     m_btnSetStart = new QPushButton(tr("Set as Start"), this);
     m_btnSetEnd   = new QPushButton(tr("Set as End"), this);
@@ -320,9 +322,7 @@ void VideoPreviewWidget::setItem(const QUuid& id) {
     m_player->stop();
     m_durationMs = 0;
     m_loadedPath = it.common().sourcePath;
-    m_pendingFirstFrameMs = qint64(it.video.startSecs * 1000);
-    m_priming = false;
-    m_audio->setMuted(false);
+    m_seekOnLoadMs = qint64(it.video.startSecs * 1000);
     m_player->setSource(QUrl::fromLocalFile(it.common().sourcePath));
     rebuildLabels();
 }
@@ -330,9 +330,7 @@ void VideoPreviewWidget::setItem(const QUuid& id) {
 void VideoPreviewWidget::clear() {
     m_id = QUuid();
     m_loadedPath.clear();
-    m_pendingFirstFrameMs = -1;
-    m_priming = false;
-    m_audio->setMuted(false);
+    m_seekOnLoadMs = -1;
     m_player->stop();
     m_player->setSource(QUrl());
     m_scrub->setTotalMs(0);
@@ -346,12 +344,6 @@ void VideoPreviewWidget::clear() {
 }
 
 void VideoPreviewWidget::onPositionChanged(qint64 ms) {
-    if (m_priming) {
-        // Play has now taken effect — pause cleanly and restore audio.
-        m_priming = false;
-        m_player->pause();
-        m_audio->setMuted(false);
-    }
     m_scrub->setPositionMs(ms);
     m_pos->setText(fmtTime(ms / 1000.0));
 }
@@ -368,14 +360,13 @@ void VideoPreviewWidget::onPlaybackStateChanged(QMediaPlayer::PlaybackState) {
 }
 
 void VideoPreviewWidget::onMediaStatusChanged(QMediaPlayer::MediaStatus s) {
-    if (m_pendingFirstFrameMs >= 0
-        && (s == QMediaPlayer::LoadedMedia || s == QMediaPlayer::BufferedMedia)) {
-        qint64 target = m_pendingFirstFrameMs;
-        m_pendingFirstFrameMs = -1;
-        m_audio->setMuted(true);
-        m_player->setPosition(target);
-        m_priming = true;
-        m_player->play();
+    // Once the source is fully buffered, position the playhead at the
+    // clip's trim-start so a later Play click begins from the right place.
+    // The player stays paused; the canvas remains black until the user
+    // explicitly plays.
+    if (m_seekOnLoadMs >= 0 && s == QMediaPlayer::BufferedMedia) {
+        m_player->setPosition(m_seekOnLoadMs);
+        m_seekOnLoadMs = -1;
     }
 }
 
@@ -384,11 +375,10 @@ void VideoPreviewWidget::onError(QMediaPlayer::Error, const QString& msg) {
 }
 
 void VideoPreviewWidget::setPlayButtonText() {
-    if (m_player->playbackState() == QMediaPlayer::PlayingState) {
-        m_btnPlay->setText(tr("⏸ Pause"));
-    } else {
-        m_btnPlay->setText(tr("▶ Play"));
-    }
+    QStyle::StandardPixmap sp = (m_player->playbackState() == QMediaPlayer::PlayingState)
+        ? QStyle::SP_MediaPause
+        : QStyle::SP_MediaPlay;
+    m_btnPlay->setIcon(style()->standardIcon(sp));
 }
 
 void VideoPreviewWidget::rebuildLabels() {

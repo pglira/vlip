@@ -7,6 +7,7 @@
 #include <QStringList>
 #include <QRegularExpression>
 #include <QProcess>
+#include <QDateTime>
 
 namespace vlip {
 
@@ -125,8 +126,9 @@ bool Renderer::start(const Project& p, const QString& outPath) {
 
     cleanupTempDir();
     m_outPath = outPath;
-    m_totalDuration = 0.0;
     m_logTail.clear();
+    m_totalDuration = 0.0;
+    m_lastProgressLogMs = 0;
 
     QString runErr;
     QString cmdLine = buildAndExecute(p, outPath, &runErr);
@@ -267,7 +269,7 @@ QString Renderer::buildAndExecute(const Project& p, const QString& outPath, QStr
          << "-r" << QString::number(FPS);
     args << "-c:a" << "aac" << "-b:a" << "192k" << "-ar" << QString::number(sampleRate);
     args << "-movflags" << "+faststart";
-    args << "-progress" << "pipe:1";
+    args << "-progress" << "pipe:1";       // periodic key=value lines on stdout
     args << outPath;
 
     if (m_proc) { m_proc->deleteLater(); m_proc = nullptr; }
@@ -276,28 +278,27 @@ QString Renderer::buildAndExecute(const Project& p, const QString& outPath, QStr
     m_proc->setArguments(args);
     m_proc->setProcessChannelMode(QProcess::SeparateChannels);
 
+    // stderr: ffmpeg's verbose banner + warnings — captured silently for
+    // failure diagnosis, never forwarded to the UI log.
+    connect(m_proc, &QProcess::readyReadStandardError, this, [this]() {
+        m_logTail += QString::fromUtf8(m_proc->readAllStandardError());
+        if (m_logTail.size() > 8192) m_logTail = m_logTail.right(8192);
+    });
+    // stdout: ffmpeg's "-progress pipe:1" key=value stream — used for the
+    // throttled "Rendering: X%" log lines.
     connect(m_proc, &QProcess::readyReadStandardOutput, this, [this]() {
         QString chunk = QString::fromUtf8(m_proc->readAllStandardOutput());
         for (const auto& line : chunk.split('\n', Qt::SkipEmptyParts)) {
-            onStdoutLine(line.trimmed());
-        }
-    });
-    connect(m_proc, &QProcess::readyReadStandardError, this, [this]() {
-        QString chunk = QString::fromUtf8(m_proc->readAllStandardError());
-        m_logTail += chunk;
-        if (m_logTail.size() > 8192) m_logTail = m_logTail.right(8192);
-        for (const auto& line : chunk.split('\n', Qt::SkipEmptyParts)) {
-            emit log(line);
+            onProgressLine(line.trimmed());
         }
     });
     connect(m_proc, &QProcess::errorOccurred, this, [this](QProcess::ProcessError e) {
-        emit log(QString("ffmpeg error: %1").arg(int(e)));
+        emit log(QString("ffmpeg process error: %1").arg(int(e)));
     });
     connect(m_proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
             this, [this](int code, QProcess::ExitStatus status) {
         bool ok = (status == QProcess::NormalExit) && code == 0;
         if (ok) {
-            emit progress(1.0);
             emit finished(true, m_outPath);
         } else {
             emit finished(false, QString("ffmpeg exited with code %1.\n%2").arg(code).arg(m_logTail));
@@ -309,29 +310,40 @@ QString Renderer::buildAndExecute(const Project& p, const QString& outPath, QStr
         if (err) *err = "ffmpeg failed to start (is it installed?)";
         return {};
     }
-    emit started();
-    emit log(QString("ffmpeg started: %1 input(s), filter graph length %2 chars")
-             .arg(inputIndex).arg(filterComplex.size()));
+    Q_UNUSED(filterComplex);
+    Q_UNUSED(inputIndex);
     return m_proc->program() + " " + m_proc->arguments().join(' ');
 }
 
-void Renderer::onStdoutLine(const QString& line) {
-    // ffmpeg -progress pipe:1 emits "key=value" lines. We use out_time_us.
+void Renderer::onProgressLine(const QString& line) {
+    // ffmpeg -progress pipe:1 emits "key=value" lines, including keys
+    // like out_time_us, out_time_ms, frame, fps, speed, progress=…
     int eq = line.indexOf('=');
     if (eq < 0) return;
     QString k = line.left(eq);
     QString v = line.mid(eq + 1);
-    if (k == "out_time_us" || k == "out_time_ms") {
-        bool ok = false;
-        long long us = v.toLongLong(&ok);
-        if (k == "out_time_ms") us *= 1000;
-        if (ok && m_totalDuration > 0.0) {
-            double s = us / 1'000'000.0;
-            double frac = std::clamp(s / m_totalDuration, 0.0, 1.0);
-            emit progress(frac);
-        }
-    } else if (k == "progress") {
-        emit log("progress: " + v);
+    if (k != "out_time_us" && k != "out_time_ms") return;
+
+    bool ok = false;
+    long long us = v.toLongLong(&ok);
+    if (!ok) return;
+    if (k == "out_time_ms") us *= 1000;
+    double curSecs = us / 1'000'000.0;
+    if (curSecs < 0) return;
+
+    // Throttle: at most one log line every 3 seconds of wall time.
+    qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+    if (nowMs - m_lastProgressLogMs < 3000) return;
+    m_lastProgressLogMs = nowMs;
+
+    if (m_totalDuration > 0.0) {
+        double pct = std::clamp(curSecs / m_totalDuration, 0.0, 1.0) * 100.0;
+        emit log(QString("Rendering: %1% (%2 s / %3 s)")
+                 .arg(pct, 0, 'f', 0)
+                 .arg(curSecs, 0, 'f', 1)
+                 .arg(m_totalDuration, 0, 'f', 1));
+    } else {
+        emit log(QString("Rendering: %1 s").arg(curSecs, 0, 'f', 1));
     }
 }
 

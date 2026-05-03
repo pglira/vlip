@@ -41,8 +41,6 @@ public:
     void setDefaults(const Defaults& d);
 
     void applyImageDurationToAll(double secs);
-    void trimVideoStartAll(double secs);
-    void trimVideoEndAll(double secs);
 
     // Project file lifecycle
     void newProject();
@@ -56,7 +54,6 @@ signals:
     void projectChanged();
     void selectionChanged(const QUuid& id);
     void statusMessage(const QString& msg, int level = 0);  // StatusPane::Level
-    void renderProgress(double frac);
 
 protected:
     void closeEvent(QCloseEvent* e) override;
