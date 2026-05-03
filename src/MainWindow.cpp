@@ -301,6 +301,21 @@ void MainWindow::setImageDuration(const QUuid& id, double secs) {
     onProjectMutated(false);
 }
 
+void MainWindow::setImageCrop(const QUuid& id, const std::optional<QRectF>& rect) {
+    auto* it = findItem(id);
+    if (!it || it->kind != ItemKind::Image) return;
+    it->image.crop = rect;
+    onProjectMutated(false);
+}
+
+void MainWindow::beginImageCrop() {
+    if (m_dockPreview) {
+        m_dockPreview->show();   // un-hides the dock if the user closed it
+        m_dockPreview->raise();  // brings it to the front of any tab group
+    }
+    if (m_preview) m_preview->beginImageCrop();
+}
+
 void MainWindow::setVideoTrim(const QUuid& id, double startSecs, double endSecs) {
     auto* it = findItem(id);
     if (!it || it->kind != ItemKind::Video) return;

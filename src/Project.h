@@ -3,9 +3,11 @@
 #include <QString>
 #include <QDateTime>
 #include <QUuid>
+#include <QRectF>
 #include <QVector>
 #include <QSharedPointer>
 #include <QVariantMap>
+#include <optional>
 #include <QColor>
 
 namespace vlip {
@@ -28,6 +30,7 @@ struct Common {
 struct ImageItem {
     Common common;
     double durationSecs = 4.0;
+    std::optional<QRectF> crop;     // normalized 0..1 in source pixel space
     int sourceWidth = 0;
     int sourceHeight = 0;
 };

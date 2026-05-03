@@ -36,11 +36,16 @@ public:
     void setUsed(const QUuid& id, bool used);
     void setSubtitle(const QUuid& id, const QString& s);
     void setImageDuration(const QUuid& id, double secs);
+    void setImageCrop(const QUuid& id, const std::optional<QRectF>& rect);
     void setVideoTrim(const QUuid& id, double startSecs, double endSecs);
     void setCanvas(int w, int h, int fps);
     void setDefaults(const Defaults& d);
 
     void applyImageDurationToAll(double secs);
+
+    // Crop UI: ask the preview pane to enter interactive crop mode for the
+    // currently selected image item.
+    void beginImageCrop();
 
     // Project file lifecycle
     void newProject();

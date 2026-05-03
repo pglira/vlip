@@ -202,6 +202,15 @@ QString Renderer::buildAndExecute(const Project& p, const QString& outPath, QStr
             int silInIdx = inputIndex++;
 
             QString chain = QString("[%1:v]").arg(imgInIdx);
+            if (img.crop && img.sourceWidth > 0 && img.sourceHeight > 0) {
+                const QRectF& r = *img.crop;
+                int sw = img.sourceWidth, sh = img.sourceHeight;
+                int cx = std::clamp(int(std::round(r.x() * sw)), 0, sw - 1);
+                int cy = std::clamp(int(std::round(r.y() * sh)), 0, sh - 1);
+                int cw = std::clamp(int(std::round(r.width() * sw)), 1, sw - cx);
+                int ch = std::clamp(int(std::round(r.height() * sh)), 1, sh - cy);
+                chain += QString("crop=%1:%2:%3:%4,").arg(cw).arg(ch).arg(cx).arg(cy);
+            }
             chain += QString("scale=%1:%2:force_original_aspect_ratio=decrease").arg(W).arg(H);
             chain += QString(",pad=%1:%2:(ow-iw)/2:(oh-ih)/2:color=black").arg(W).arg(H);
             chain += QString(",setsar=1,fps=%1,format=yuv420p").arg(FPS);

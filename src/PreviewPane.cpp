@@ -40,7 +40,25 @@ PreviewPane::PreviewPane(MainWindow* mw, QWidget* parent)
         m_mw->setSubtitle(m_id, m_subtitle->text());
     });
 
+    connect(m_image, &ImagePreviewWidget::cropApplied, this,
+        [this](const std::optional<QRectF>& rect) {
+            if (m_id.isNull()) return;
+            m_mw->setImageCrop(m_id, rect);
+        });
+
     refresh();
+}
+
+void PreviewPane::beginImageCrop() {
+    if (m_id.isNull()) return;
+    int idx = m_mw->project().indexOfId(m_id);
+    if (idx < 0) return;
+    const Item& it = m_mw->project().items[idx];
+    if (it.kind != ItemKind::Image) return;
+    if (it.common().sourceMissing) return;
+    m_stack->setCurrentIndex(0);    // make sure image preview is visible
+    m_image->setCrop(it.image.crop);
+    m_image->enterCropMode();
 }
 
 void PreviewPane::onSelectionChanged(const QUuid& id) {
@@ -49,6 +67,8 @@ void PreviewPane::onSelectionChanged(const QUuid& id) {
 }
 
 void PreviewPane::refresh() {
+    m_image->setProjectCanvas(m_mw->project().canvas.width,
+                              m_mw->project().canvas.height);
     int idx = m_mw->project().indexOfId(m_id);
     m_suspend = true;
     if (idx < 0) {
@@ -73,6 +93,7 @@ void PreviewPane::refresh() {
     if (it.kind == ItemKind::Image) {
         m_video->clear();
         m_image->setImage(it.common().sourcePath);
+        m_image->setCrop(it.image.crop);
         m_stack->setCurrentIndex(0);
     } else {
         m_image->clear();

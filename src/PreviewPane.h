@@ -21,6 +21,9 @@ public slots:
     void onSelectionChanged(const QUuid& id);
     void refresh();
 
+    // Activates the interactive crop tool on the currently selected image.
+    void beginImageCrop();
+
 private:
     MainWindow* m_mw;
     QUuid m_id;

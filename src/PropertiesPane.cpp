@@ -3,9 +3,11 @@
 
 #include <QFormLayout>
 #include <QVBoxLayout>
+#include <QHBoxLayout>
 #include <QGroupBox>
 #include <QLabel>
 #include <QDoubleSpinBox>
+#include <QPushButton>
 #include <QStackedWidget>
 #include <QFileInfo>
 
@@ -43,6 +45,16 @@ void PropertiesPane::buildUi() {
     m_imgDuration->setRange(0.1, 600.0);
     m_imgDuration->setSuffix(" s");
     iLay->addRow(tr("Duration:"), m_imgDuration);
+
+    auto* cropRow = new QHBoxLayout;
+    m_btnCrop = new QPushButton(tr("Crop…"), m_imgGroup);
+    m_btnCrop->setToolTip(tr("Open the interactive crop tool  (Ctrl+Shift+C)"));
+    m_btnClearCrop = new QPushButton(tr("Clear"), m_imgGroup);
+    m_cropLabel = new QLabel(tr("(none)"), m_imgGroup);
+    cropRow->addWidget(m_btnCrop);
+    cropRow->addWidget(m_btnClearCrop);
+    cropRow->addWidget(m_cropLabel, 1);
+    iLay->addRow(tr("Crop:"), cropRow);
     m_stack->addWidget(m_imgGroup);
 
     // ---- Video group ----
@@ -71,6 +83,15 @@ void PropertiesPane::buildUi() {
             this, [this](double v) {
         if (m_suspend) return;
         m_mw->setImageDuration(m_id, v);
+    });
+
+    connect(m_btnCrop, &QPushButton::clicked, this, [this]() {
+        if (m_id.isNull()) return;
+        m_mw->beginImageCrop();
+    });
+    connect(m_btnClearCrop, &QPushButton::clicked, this, [this]() {
+        if (m_id.isNull()) return;
+        m_mw->setImageCrop(m_id, std::nullopt);
     });
 
     auto pushTrim = [this]() {
@@ -113,6 +134,16 @@ void PropertiesPane::refresh() {
     if (it->kind == ItemKind::Image) {
         m_stack->setCurrentIndex(0);
         m_imgDuration->setValue(it->image.durationSecs);
+        if (it->image.crop) {
+            const QRectF& r = *it->image.crop;
+            m_cropLabel->setText(QString("x=%1 y=%2 w=%3 h=%4")
+                .arg(r.x(), 0, 'f', 3).arg(r.y(), 0, 'f', 3)
+                .arg(r.width(), 0, 'f', 3).arg(r.height(), 0, 'f', 3));
+            m_btnClearCrop->setEnabled(true);
+        } else {
+            m_cropLabel->setText(tr("(none)"));
+            m_btnClearCrop->setEnabled(false);
+        }
     } else {
         m_stack->setCurrentIndex(1);
         m_vidInfo->setText(QString("%1 s, %2×%3, audio: %4")

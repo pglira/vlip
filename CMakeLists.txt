@@ -32,6 +32,7 @@ set(SRCS
     src/DefaultsPane.cpp
     src/StatusPane.cpp
     src/ImagePreviewWidget.cpp
+    src/CropOverlay.cpp
     src/VideoPreviewWidget.cpp
     src/Renderer.cpp
 )

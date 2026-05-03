@@ -7,6 +7,7 @@
 class QStackedWidget;
 class QLabel;
 class QDoubleSpinBox;
+class QPushButton;
 class QGroupBox;
 
 namespace vlip {
@@ -37,6 +38,9 @@ private:
     // Image fields
     QGroupBox* m_imgGroup;
     QDoubleSpinBox* m_imgDuration;
+    QPushButton* m_btnCrop;
+    QPushButton* m_btnClearCrop;
+    QLabel* m_cropLabel;
 
     // Video fields
     QGroupBox* m_vidGroup;

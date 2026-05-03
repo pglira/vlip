@@ -12,6 +12,22 @@ namespace vlip {
 
 namespace {
 
+QJsonObject toJson(const QRectF& r) {
+    QJsonObject o;
+    o["x"] = r.x();
+    o["y"] = r.y();
+    o["w"] = r.width();
+    o["h"] = r.height();
+    return o;
+}
+
+QRectF rectFromJson(const QJsonObject& o) {
+    return QRectF(o.value("x").toDouble(),
+                  o.value("y").toDouble(),
+                  o.value("w").toDouble(),
+                  o.value("h").toDouble());
+}
+
 QJsonObject toJsonCommon(const Common& c) {
     QJsonObject o;
     o["id"] = c.id.toString(QUuid::WithoutBraces);
@@ -45,6 +61,7 @@ QJsonObject toJson(const Item& it) {
     if (it.kind == ItemKind::Image) {
         o["kind"] = "image";
         o["duration_secs"] = it.image.durationSecs;
+        if (it.image.crop) o["crop"] = toJson(*it.image.crop);
         o["src_w"] = it.image.sourceWidth;
         o["src_h"] = it.image.sourceHeight;
     } else {
@@ -66,6 +83,7 @@ Item itemFromJson(const QJsonObject& o) {
         it.kind = ItemKind::Image;
         it.image.common = commonFromJson(o.value("common").toObject());
         it.image.durationSecs = o.value("duration_secs").toDouble(4.0);
+        if (o.contains("crop")) it.image.crop = rectFromJson(o.value("crop").toObject());
         it.image.sourceWidth = o.value("src_w").toInt();
         it.image.sourceHeight = o.value("src_h").toInt();
     } else {
