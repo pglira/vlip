@@ -11,6 +11,8 @@ namespace vlip {
 class MainWindow;
 class ImagePreviewWidget;
 class VideoPreviewWidget;
+class TextClipPreviewWidget;
+enum class ItemKind;
 
 class PreviewPane : public QWidget {
     Q_OBJECT
@@ -27,10 +29,12 @@ public slots:
 private:
     MainWindow* m_mw;
     QUuid m_id;
-    QLineEdit* m_subtitle;
+    bool m_isTextClip = false;            // governs how m_textInput commits
+    QLineEdit* m_textInput;               // dual-purpose: subtitle / textclip text
     QStackedWidget* m_stack;
     ImagePreviewWidget* m_image;
     VideoPreviewWidget* m_video;
+    TextClipPreviewWidget* m_text;
     bool m_suspend = false;
 };
 

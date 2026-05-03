@@ -7,8 +7,10 @@
 #include <QGroupBox>
 #include <QLabel>
 #include <QDoubleSpinBox>
+#include <QLineEdit>
 #include <QPushButton>
 #include <QStackedWidget>
+#include <QFileDialog>
 #include <QFileInfo>
 
 namespace vlip {
@@ -74,6 +76,27 @@ void PropertiesPane::buildUi() {
     vLay->addRow(tr("Trim end:"), m_vidEnd);
     m_stack->addWidget(m_vidGroup);
 
+    // ---- Text-clip group ----
+    m_textGroup = new QGroupBox(tr("Text clip"), this);
+    auto* tLay = new QFormLayout(m_textGroup);
+    m_textDuration = new QDoubleSpinBox(m_textGroup);
+    m_textDuration->setDecimals(2);
+    m_textDuration->setRange(0.1, 600.0);
+    m_textDuration->setSuffix(" s");
+    tLay->addRow(tr("Duration:"), m_textDuration);
+
+    auto* bgRow = new QHBoxLayout;
+    m_textBgPath = new QLineEdit(m_textGroup);
+    m_textBgPath->setReadOnly(true);
+    m_textBgPath->setPlaceholderText(tr("(no background image — solid colour)"));
+    m_textBrowseBg = new QPushButton(tr("Browse…"), m_textGroup);
+    m_textClearBg  = new QPushButton(tr("Clear"),    m_textGroup);
+    bgRow->addWidget(m_textBgPath, 1);
+    bgRow->addWidget(m_textBrowseBg);
+    bgRow->addWidget(m_textClearBg);
+    tLay->addRow(tr("Background:"), bgRow);
+    m_stack->addWidget(m_textGroup);
+
     // ---- Empty placeholder ----
     auto* placeholder = new QLabel(tr("No item selected."), this);
     placeholder->setAlignment(Qt::AlignCenter);
@@ -102,6 +125,25 @@ void PropertiesPane::buildUi() {
             this, pushTrim);
     connect(m_vidEnd, qOverload<double>(&QDoubleSpinBox::valueChanged),
             this, pushTrim);
+
+    connect(m_textDuration, qOverload<double>(&QDoubleSpinBox::valueChanged),
+            this, [this](double v) {
+        if (m_suspend || m_id.isNull()) return;
+        m_mw->setTextClipDuration(m_id, v);
+    });
+    connect(m_textBrowseBg, &QPushButton::clicked, this, [this]() {
+        if (m_id.isNull()) return;
+        QString path = QFileDialog::getOpenFileName(
+            this, tr("Choose background image"),
+            QString(),
+            tr("Images (*.jpg *.jpeg *.png *.heic *.heif *.webp *.tif *.tiff *.bmp);;All files (*.*)"));
+        if (path.isEmpty()) return;
+        m_mw->setTextClipBackground(m_id, path);
+    });
+    connect(m_textClearBg, &QPushButton::clicked, this, [this]() {
+        if (m_id.isNull()) return;
+        m_mw->setTextClipBackground(m_id, QString());
+    });
 }
 
 Item* PropertiesPane::current() {
@@ -121,39 +163,52 @@ void PropertiesPane::refresh() {
     if (!it) {
         m_filename->setText("—");
         m_timestamp->setText("—");
-        m_stack->setCurrentIndex(2);
+        m_stack->setCurrentIndex(3);
         m_suspend = false;
         return;
     }
-    m_filename->setText(QFileInfo(it->common().sourcePath).fileName()
-                        + (it->common().sourceMissing ? "  [missing]" : ""));
+    if (it->kind == ItemKind::TextClip) {
+        m_filename->setText(tr("(text clip)"));
+    } else {
+        m_filename->setText(QFileInfo(it->common().sourcePath).fileName()
+                            + (it->common().sourceMissing ? "  [missing]" : ""));
+    }
     QString tsText = it->common().timestamp.toString("yyyy-MM-dd HH:mm:ss");
     if (it->common().timestampUncertain) tsText += "  ?";
     m_timestamp->setText(tsText);
 
-    if (it->kind == ItemKind::Image) {
-        m_stack->setCurrentIndex(0);
-        m_imgDuration->setValue(it->image.durationSecs);
-        if (it->image.crop) {
-            const QRectF& r = *it->image.crop;
-            m_cropLabel->setText(QString("x=%1 y=%2 w=%3 h=%4")
-                .arg(r.x(), 0, 'f', 3).arg(r.y(), 0, 'f', 3)
-                .arg(r.width(), 0, 'f', 3).arg(r.height(), 0, 'f', 3));
-            m_btnClearCrop->setEnabled(true);
-        } else {
-            m_cropLabel->setText(tr("(none)"));
-            m_btnClearCrop->setEnabled(false);
-        }
-    } else {
-        m_stack->setCurrentIndex(1);
-        m_vidInfo->setText(QString("%1 s, %2×%3, audio: %4")
-            .arg(it->video.sourceDurationSecs, 0, 'f', 2)
-            .arg(it->video.sourceWidth).arg(it->video.sourceHeight)
-            .arg(it->video.hasAudio ? tr("yes") : tr("no")));
-        m_vidStart->setRange(0.0, std::max(0.001, it->video.sourceDurationSecs));
-        m_vidEnd->setRange(0.0, std::max(0.001, it->video.sourceDurationSecs));
-        m_vidStart->setValue(it->video.startSecs);
-        m_vidEnd->setValue(it->video.endSecs > 0 ? it->video.endSecs : it->video.sourceDurationSecs);
+    switch (it->kind) {
+        case ItemKind::Image:
+            m_stack->setCurrentIndex(0);
+            m_imgDuration->setValue(it->image.durationSecs);
+            if (it->image.crop) {
+                const QRectF& r = *it->image.crop;
+                m_cropLabel->setText(QString("x=%1 y=%2 w=%3 h=%4")
+                    .arg(r.x(), 0, 'f', 3).arg(r.y(), 0, 'f', 3)
+                    .arg(r.width(), 0, 'f', 3).arg(r.height(), 0, 'f', 3));
+                m_btnClearCrop->setEnabled(true);
+            } else {
+                m_cropLabel->setText(tr("(none)"));
+                m_btnClearCrop->setEnabled(false);
+            }
+            break;
+        case ItemKind::Video:
+            m_stack->setCurrentIndex(1);
+            m_vidInfo->setText(QString("%1 s, %2×%3, audio: %4")
+                .arg(it->video.sourceDurationSecs, 0, 'f', 2)
+                .arg(it->video.sourceWidth).arg(it->video.sourceHeight)
+                .arg(it->video.hasAudio ? tr("yes") : tr("no")));
+            m_vidStart->setRange(0.0, std::max(0.001, it->video.sourceDurationSecs));
+            m_vidEnd->setRange(0.0, std::max(0.001, it->video.sourceDurationSecs));
+            m_vidStart->setValue(it->video.startSecs);
+            m_vidEnd->setValue(it->video.endSecs > 0 ? it->video.endSecs : it->video.sourceDurationSecs);
+            break;
+        case ItemKind::TextClip:
+            m_stack->setCurrentIndex(2);
+            m_textDuration->setValue(it->textClip.durationSecs);
+            m_textBgPath->setText(it->textClip.backgroundPath);
+            m_textClearBg->setEnabled(!it->textClip.backgroundPath.isEmpty());
+            break;
     }
     m_suspend = false;
 }

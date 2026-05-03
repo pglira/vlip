@@ -38,10 +38,19 @@ public:
     void setImageDuration(const QUuid& id, double secs);
     void setImageCrop(const QUuid& id, const std::optional<QRectF>& rect);
     void setVideoTrim(const QUuid& id, double startSecs, double endSecs);
+    void setTextClipText(const QUuid& id, const QString& text);
+    void setTextClipDuration(const QUuid& id, double secs);
+    void setTextClipBackground(const QUuid& id, const QString& path);
+    enum class InsertPosition { Before, After };
+    // Add a new text clip just before/after `referenceId`. If the id is
+    // null, "Before" inserts at the start of the timeline and "After" at
+    // the end. Returns the new clip's id.
+    QUuid addTextClip(const QUuid& referenceId, InsertPosition pos);
     void setCanvas(int w, int h, int fps);
     void setDefaults(const Defaults& d);
 
     void applyImageDurationToAll(double secs);
+    void applyTextClipDurationToAll(double secs);
 
     // Crop UI: ask the preview pane to enter interactive crop mode for the
     // currently selected image item.

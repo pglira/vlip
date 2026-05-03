@@ -34,6 +34,7 @@ set(SRCS
     src/ImagePreviewWidget.cpp
     src/CropOverlay.cpp
     src/VideoPreviewWidget.cpp
+    src/TextClipPreviewWidget.cpp
     src/Renderer.cpp
 )
 

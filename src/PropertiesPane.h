@@ -6,6 +6,7 @@
 
 class QStackedWidget;
 class QLabel;
+class QLineEdit;
 class QDoubleSpinBox;
 class QPushButton;
 class QGroupBox;
@@ -47,6 +48,13 @@ private:
     QDoubleSpinBox* m_vidStart;
     QDoubleSpinBox* m_vidEnd;
     QLabel* m_vidInfo;
+
+    // Text-clip fields
+    QGroupBox* m_textGroup;
+    QDoubleSpinBox* m_textDuration;
+    QLineEdit* m_textBgPath;
+    QPushButton* m_textBrowseBg;
+    QPushButton* m_textClearBg;
 
     QStackedWidget* m_stack;
 };

@@ -193,6 +193,60 @@ DefaultsPane::DefaultsPane(MainWindow* mw, QWidget* parent)
         m_mw->setDefaults(d);
     });
 
+    // Text clips
+    auto* tcs = new QGroupBox(tr("Text clips"), this);
+    auto* tcLay = new QFormLayout(tcs);
+    m_tcFont = new QFontComboBox(tcs);
+    tcLay->addRow(tr("Font:"), m_tcFont);
+    m_tcFontSize = new QSpinBox(tcs);
+    m_tcFontSize->setRange(0, 400);
+    m_tcFontSize->setSuffix(" px");
+    m_tcFontSize->setSpecialValueText(tr("auto (canvas-relative)"));
+    tcLay->addRow(tr("Font size:"), m_tcFontSize);
+    m_tcFontColor = new QPushButton(tr("Pick…"), tcs);
+    tcLay->addRow(tr("Text color:"), m_tcFontColor);
+    m_tcVAlign = new QComboBox(tcs);
+    m_tcVAlign->addItem(tr("Top"),    int(VerticalAlign::Top));
+    m_tcVAlign->addItem(tr("Middle"), int(VerticalAlign::Middle));
+    m_tcVAlign->addItem(tr("Bottom"), int(VerticalAlign::Bottom));
+    tcLay->addRow(tr("Vertical align:"), m_tcVAlign);
+    m_tcDuration = new QDoubleSpinBox(tcs);
+    m_tcDuration->setRange(0.1, 600.0);
+    m_tcDuration->setDecimals(2);
+    m_tcDuration->setSuffix(" s");
+    auto* applyTcDur = new QPushButton(tr("Apply to all text clips"), tcs);
+    auto* tcDurRow = new QHBoxLayout;
+    tcDurRow->addWidget(m_tcDuration);
+    tcDurRow->addWidget(applyTcDur);
+    tcLay->addRow(tr("Default duration:"), tcDurRow);
+    outer->addWidget(tcs);
+
+    auto pushTextClip = [this]() {
+        if (m_suspend) return;
+        Defaults d = m_mw->project().defaults;
+        d.textClip.fontFamily   = m_tcFont->currentFont().family();
+        d.textClip.fontSizePx   = m_tcFontSize->value();
+        d.textClip.verticalAlign = VerticalAlign(m_tcVAlign->currentData().toInt());
+        d.textClip.defaultDuration = m_tcDuration->value();
+        m_mw->setDefaults(d);
+    };
+    connect(m_tcFont, &QFontComboBox::currentFontChanged, this,
+            [pushTextClip](const QFont&) { pushTextClip(); });
+    connect(m_tcFontSize, qOverload<int>(&QSpinBox::valueChanged), this,
+            [pushTextClip](int) { pushTextClip(); });
+    connect(m_tcVAlign, qOverload<int>(&QComboBox::currentIndexChanged), this,
+            [pushTextClip](int) { pushTextClip(); });
+    connect(m_tcDuration, qOverload<double>(&QDoubleSpinBox::valueChanged), this,
+            [pushTextClip](double) { pushTextClip(); });
+    connect(m_tcFontColor, &QPushButton::clicked, this, [this]() {
+        Defaults d = m_mw->project().defaults;
+        pickColor(m_tcFontColor, d.textClip.fontColor, /*alpha=*/false);
+        m_mw->setDefaults(d);
+    });
+    connect(applyTcDur, &QPushButton::clicked, this, [this]() {
+        m_mw->applyTextClipDurationToAll(m_tcDuration->value());
+    });
+
     outer->addStretch(1);
 
     connect(m_transition, qOverload<double>(&QDoubleSpinBox::valueChanged), this,
@@ -235,6 +289,15 @@ void DefaultsPane::refresh() {
     int posIdx = m_position->findData(int(p.defaults.subtitle.position));
     if (posIdx >= 0) m_position->setCurrentIndex(posIdx);
     m_subtitleDuration->setValue(p.defaults.subtitle.visibleSecs);
+
+    if (!p.defaults.textClip.fontFamily.isEmpty()) {
+        m_tcFont->setCurrentFont(QFont(p.defaults.textClip.fontFamily));
+    }
+    m_tcFontSize->setValue(p.defaults.textClip.fontSizePx);
+    paintSwatch(m_tcFontColor, p.defaults.textClip.fontColor);
+    int vIdx = m_tcVAlign->findData(int(p.defaults.textClip.verticalAlign));
+    if (vIdx >= 0) m_tcVAlign->setCurrentIndex(vIdx);
+    m_tcDuration->setValue(p.defaults.textClip.defaultDuration);
 
     m_suspend = false;
 }

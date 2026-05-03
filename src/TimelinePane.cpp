@@ -23,6 +23,34 @@ namespace {
 constexpr int kThumbHeight = 48;
 constexpr int kThumbMaxWidth = 160;
 
+// 16:9 thumbnail with a centred "T" — used for text clips, which have no
+// source image to derive a thumbnail from.
+QPixmap textClipThumbnail() {
+    static QPixmap cached;
+    if (!cached.isNull()) return cached;
+    int w = kThumbHeight * 16 / 9;
+    QPixmap pm(w, kThumbHeight);
+    pm.fill(QColor(35, 35, 45));
+    QPainter p(&pm);
+    p.setPen(QColor(220, 220, 220));
+    QFont f = p.font();
+    f.setBold(true);
+    f.setPixelSize(int(kThumbHeight * 0.62));
+    p.setFont(f);
+    p.drawText(pm.rect(), Qt::AlignCenter, "T");
+    p.setPen(QColor(80, 80, 100));
+    p.drawRect(0, 0, w - 1, kThumbHeight - 1);
+    cached = pm;
+    return cached;
+}
+
+QString textClipDisplayName(const QString& text) {
+    QString s = text.simplified();
+    if (s.isEmpty()) return QObject::tr("(text clip)");
+    if (s.size() > 40) s = s.left(37) + "…";
+    return s;
+}
+
 } // namespace
 
 TimelinePane::TimelinePane(MainWindow* mw, QWidget* parent) : QWidget(parent), m_mw(mw) {
@@ -31,8 +59,14 @@ TimelinePane::TimelinePane(MainWindow* mw, QWidget* parent) : QWidget(parent), m
 
     auto* row = new QHBoxLayout;
     auto* btnImport = new QPushButton(tr("Import…"), this);
+    auto* btnTextBefore = new QPushButton(tr("+ Text ↑"), this);
+    btnTextBefore->setToolTip(tr("Insert a text clip just before the selected item"));
+    auto* btnTextAfter = new QPushButton(tr("+ Text ↓"), this);
+    btnTextAfter->setToolTip(tr("Insert a text clip just after the selected item"));
     auto* btnRemove = new QPushButton(tr("Remove"), this);
     row->addWidget(btnImport);
+    row->addWidget(btnTextBefore);
+    row->addWidget(btnTextAfter);
     row->addWidget(btnRemove);
     row->addStretch(1);
     vbox->addLayout(row);
@@ -74,6 +108,19 @@ TimelinePane::TimelinePane(MainWindow* mw, QWidget* parent) : QWidget(parent), m
         QUuid id = QUuid::fromString(it->data(0, Qt::UserRole).toString());
         m_mw->removeItem(id);
     });
+    auto currentRowId = [this]() {
+        QUuid id;
+        if (auto* cur = m_tree->currentItem()) {
+            id = QUuid::fromString(cur->data(0, Qt::UserRole).toString());
+        }
+        return id;
+    };
+    connect(btnTextBefore, &QPushButton::clicked, this, [this, currentRowId]() {
+        m_mw->addTextClip(currentRowId(), MainWindow::InsertPosition::Before);
+    });
+    connect(btnTextAfter, &QPushButton::clicked, this, [this, currentRowId]() {
+        m_mw->addTextClip(currentRowId(), MainWindow::InsertPosition::After);
+    });
 
     refresh();
 }
@@ -94,7 +141,9 @@ void TimelinePane::refresh() {
         row->setFlags(row->flags() | Qt::ItemIsUserCheckable);
         row->setCheckState(0, it.common().used ? Qt::Checked : Qt::Unchecked);
         row->setData(0, Qt::UserRole, it.common().id.toString());
-        if (!it.common().thumbPath.isEmpty()) {
+        if (it.kind == ItemKind::TextClip) {
+            row->setIcon(1, QIcon(textClipThumbnail()));
+        } else if (!it.common().thumbPath.isEmpty()) {
             QPixmap pm(it.common().thumbPath);
             if (!pm.isNull()) {
                 pm = pm.scaledToHeight(kThumbHeight, Qt::SmoothTransformation);
@@ -104,8 +153,13 @@ void TimelinePane::refresh() {
                 row->setIcon(1, QIcon(pm));
             }
         }
-        QString fname = QFileInfo(it.common().sourcePath).fileName();
-        if (it.common().sourceMissing) fname += "  [missing]";
+        QString fname;
+        if (it.kind == ItemKind::TextClip) {
+            fname = textClipDisplayName(it.textClip.text);
+        } else {
+            fname = QFileInfo(it.common().sourcePath).fileName();
+            if (it.common().sourceMissing) fname += "  [missing]";
+        }
         row->setText(2, fname);
 
         QDateTime ts = it.common().timestamp;

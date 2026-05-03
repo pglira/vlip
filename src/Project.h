@@ -12,7 +12,7 @@
 
 namespace vlip {
 
-enum class ItemKind { Image, Video };
+enum class ItemKind { Image, Video, TextClip };
 
 struct Common {
     QUuid id;
@@ -45,15 +45,38 @@ struct VideoItem {
     bool hasAudio = true;
 };
 
+struct TextClipItem {
+    Common common;                  // sourcePath stays empty for text clips
+    QString text;
+    QString backgroundPath;         // optional; empty → solid bgColor from defaults
+    double durationSecs = 5.0;
+};
+
 struct Item {
     ItemKind kind;
     ImageItem image;
     VideoItem video;
-    Common& common() { return kind == ItemKind::Image ? image.common : video.common; }
-    const Common& common() const { return kind == ItemKind::Image ? image.common : video.common; }
+    TextClipItem textClip;
+    Common& common() {
+        switch (kind) {
+            case ItemKind::Image:    return image.common;
+            case ItemKind::Video:    return video.common;
+            case ItemKind::TextClip: return textClip.common;
+        }
+        return image.common;
+    }
+    const Common& common() const {
+        switch (kind) {
+            case ItemKind::Image:    return image.common;
+            case ItemKind::Video:    return video.common;
+            case ItemKind::TextClip: return textClip.common;
+        }
+        return image.common;
+    }
 
-    static Item makeImage(const ImageItem& i) { Item it; it.kind = ItemKind::Image; it.image = i; return it; }
-    static Item makeVideo(const VideoItem& v) { Item it; it.kind = ItemKind::Video; it.video = v; return it; }
+    static Item makeImage(const ImageItem& i)    { Item it; it.kind = ItemKind::Image;    it.image    = i; return it; }
+    static Item makeVideo(const VideoItem& v)    { Item it; it.kind = ItemKind::Video;    it.video    = v; return it; }
+    static Item makeTextClip(const TextClipItem& t) { Item it; it.kind = ItemKind::TextClip; it.textClip = t; return it; }
 
     double effectiveDuration() const;
 };
@@ -65,6 +88,7 @@ struct Canvas {
 };
 
 enum class SubtitlePosition { Top, Middle, Bottom };
+enum class VerticalAlign { Top, Middle, Bottom };
 
 struct SubtitleStyle {
     QString fontFamily;                  // empty → first available DejaVu / system fallback
@@ -77,10 +101,21 @@ struct SubtitleStyle {
     double visibleSecs = 0.0;
 };
 
+struct TextClipStyle {
+    QString fontFamily;
+    int fontSizePx = 0;                  // 0 → auto (canvas-relative)
+    QColor fontColor = QColor(255, 255, 255, 255);
+    // Background is always black when no background image is set —
+    // this is intentional and not user-configurable.
+    VerticalAlign verticalAlign = VerticalAlign::Middle;
+    double defaultDuration = 5.0;
+};
+
 struct Defaults {
     double imageDuration = 4.0;
     double transitionSecs = 0.5;    // fade-out/fade-in duration between clips; 0 disables
     SubtitleStyle subtitle;
+    TextClipStyle textClip;
 };
 
 struct Project {
@@ -92,6 +127,7 @@ struct Project {
     void sortChronologically();
     int indexOfId(const QUuid& id) const;
     void applyImageDurationAll(double secs);
+    void applyTextClipDurationAll(double secs);
 };
 
 } // namespace vlip

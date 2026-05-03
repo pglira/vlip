@@ -55,6 +55,18 @@ int main(int argc, char** argv) {
         r.item.common().used = true;
         p.items.append(r.item);
     }
+    // Inject a text clip ahead of the first imported item so the smoke
+    // render exercises that filter branch as well.
+    if (!p.items.isEmpty()) {
+        vlip::TextClipItem t;
+        t.common.id = QUuid::createUuid();
+        t.common.used = true;
+        t.common.timestamp = p.items.first().common().timestamp.addMSecs(-1);
+        t.text = "Smoke";
+        t.durationSecs = 0.5;
+        p.items.append(vlip::Item::makeTextClip(t));
+    }
+
     p.sortChronologically();
 
     if (p.items.isEmpty()) {

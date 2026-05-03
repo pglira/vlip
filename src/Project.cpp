@@ -5,12 +5,18 @@
 namespace vlip {
 
 double Item::effectiveDuration() const {
-    if (kind == ItemKind::Image) {
-        return std::max(0.0, image.durationSecs);
+    switch (kind) {
+        case ItemKind::Image:
+            return std::max(0.0, image.durationSecs);
+        case ItemKind::Video: {
+            double end = video.endSecs > 0.0 ? video.endSecs : video.sourceDurationSecs;
+            double start = std::max(0.0, video.startSecs);
+            return std::max(0.0, end - start);
+        }
+        case ItemKind::TextClip:
+            return std::max(0.0, textClip.durationSecs);
     }
-    double end = video.endSecs > 0.0 ? video.endSecs : video.sourceDurationSecs;
-    double start = std::max(0.0, video.startSecs);
-    return std::max(0.0, end - start);
+    return 0.0;
 }
 
 void Project::sortChronologically() {
@@ -32,6 +38,15 @@ void Project::applyImageDurationAll(double secs) {
     for (auto& it : items) {
         if (it.kind == ItemKind::Image) {
             it.image.durationSecs = secs;
+        }
+    }
+}
+
+void Project::applyTextClipDurationAll(double secs) {
+    defaults.textClip.defaultDuration = secs;
+    for (auto& it : items) {
+        if (it.kind == ItemKind::TextClip) {
+            it.textClip.durationSecs = secs;
         }
     }
 }

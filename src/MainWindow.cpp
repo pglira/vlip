@@ -308,6 +308,67 @@ void MainWindow::setImageCrop(const QUuid& id, const std::optional<QRectF>& rect
     onProjectMutated(false);
 }
 
+void MainWindow::setTextClipText(const QUuid& id, const QString& text) {
+    auto* it = findItem(id);
+    if (!it || it->kind != ItemKind::TextClip) return;
+    it->textClip.text = text;
+    onProjectMutated(false);
+}
+
+void MainWindow::setTextClipDuration(const QUuid& id, double secs) {
+    auto* it = findItem(id);
+    if (!it || it->kind != ItemKind::TextClip) return;
+    it->textClip.durationSecs = std::max(0.05, secs);
+    onProjectMutated(false);
+}
+
+void MainWindow::setTextClipBackground(const QUuid& id, const QString& path) {
+    auto* it = findItem(id);
+    if (!it || it->kind != ItemKind::TextClip) return;
+    it->textClip.backgroundPath = path;
+    onProjectMutated(false);
+}
+
+QUuid MainWindow::addTextClip(const QUuid& referenceId, InsertPosition pos) {
+    TextClipItem t;
+    t.common.id = QUuid::createUuid();
+    t.common.used = true;
+    t.text = tr("Text");
+    t.durationSecs = m_project.defaults.textClip.defaultDuration;
+
+    // Synthesise a timestamp so the chronological sort places the new
+    // clip on the requested side of the reference. 1 ms offset is enough
+    // since timestamps have ms precision.
+    QDateTime ts;
+    int idx = referenceId.isNull() ? -1 : m_project.indexOfId(referenceId);
+    if (idx >= 0) {
+        ts = m_project.items[idx].common().timestamp
+                .addMSecs(pos == InsertPosition::Before ? -1 : +1);
+    } else if (!m_project.items.isEmpty()) {
+        // No selection: anchor at the start or end of the timeline.
+        const auto& anchor = (pos == InsertPosition::Before)
+            ? m_project.items.first()
+            : m_project.items.last();
+        ts = anchor.common().timestamp
+                .addMSecs(pos == InsertPosition::Before ? -1 : +1);
+    } else {
+        ts = QDateTime::currentDateTimeUtc();
+    }
+    ts.setTimeSpec(Qt::UTC);
+    t.common.timestamp = ts;
+
+    m_project.items.append(Item::makeTextClip(t));
+    m_selectedId = t.common.id;
+    onProjectMutated(true);
+    emit selectionChanged(m_selectedId);
+    return t.common.id;
+}
+
+void MainWindow::applyTextClipDurationToAll(double secs) {
+    m_project.applyTextClipDurationAll(secs);
+    onProjectMutated(false);
+}
+
 void MainWindow::beginImageCrop() {
     if (m_dockPreview) {
         m_dockPreview->show();   // un-hides the dock if the user closed it

@@ -35,6 +35,12 @@ private:
     QPushButton *m_fontColor, *m_bgColor;
     QComboBox *m_position;
     QDoubleSpinBox *m_subtitleDuration;
+    // Text-clip defaults
+    QFontComboBox *m_tcFont;
+    QSpinBox *m_tcFontSize;
+    QPushButton *m_tcFontColor;
+    QComboBox *m_tcVAlign;
+    QDoubleSpinBox *m_tcDuration;
     bool m_suspend = false;
 };
 

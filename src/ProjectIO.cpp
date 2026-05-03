@@ -58,20 +58,29 @@ Common commonFromJson(const QJsonObject& o) {
 QJsonObject toJson(const Item& it) {
     QJsonObject o;
     o["common"] = toJsonCommon(it.common());
-    if (it.kind == ItemKind::Image) {
-        o["kind"] = "image";
-        o["duration_secs"] = it.image.durationSecs;
-        if (it.image.crop) o["crop"] = toJson(*it.image.crop);
-        o["src_w"] = it.image.sourceWidth;
-        o["src_h"] = it.image.sourceHeight;
-    } else {
-        o["kind"] = "video";
-        o["start_secs"] = it.video.startSecs;
-        o["end_secs"] = it.video.endSecs;
-        o["source_duration_secs"] = it.video.sourceDurationSecs;
-        o["src_w"] = it.video.sourceWidth;
-        o["src_h"] = it.video.sourceHeight;
-        o["has_audio"] = it.video.hasAudio;
+    switch (it.kind) {
+        case ItemKind::Image:
+            o["kind"] = "image";
+            o["duration_secs"] = it.image.durationSecs;
+            if (it.image.crop) o["crop"] = toJson(*it.image.crop);
+            o["src_w"] = it.image.sourceWidth;
+            o["src_h"] = it.image.sourceHeight;
+            break;
+        case ItemKind::Video:
+            o["kind"] = "video";
+            o["start_secs"] = it.video.startSecs;
+            o["end_secs"] = it.video.endSecs;
+            o["source_duration_secs"] = it.video.sourceDurationSecs;
+            o["src_w"] = it.video.sourceWidth;
+            o["src_h"] = it.video.sourceHeight;
+            o["has_audio"] = it.video.hasAudio;
+            break;
+        case ItemKind::TextClip:
+            o["kind"] = "textclip";
+            o["text"] = it.textClip.text;
+            o["background_path"] = it.textClip.backgroundPath;
+            o["duration_secs"] = it.textClip.durationSecs;
+            break;
     }
     return o;
 }
@@ -86,6 +95,12 @@ Item itemFromJson(const QJsonObject& o) {
         if (o.contains("crop")) it.image.crop = rectFromJson(o.value("crop").toObject());
         it.image.sourceWidth = o.value("src_w").toInt();
         it.image.sourceHeight = o.value("src_h").toInt();
+    } else if (kind == "textclip") {
+        it.kind = ItemKind::TextClip;
+        it.textClip.common = commonFromJson(o.value("common").toObject());
+        it.textClip.text = o.value("text").toString();
+        it.textClip.backgroundPath = o.value("background_path").toString();
+        it.textClip.durationSecs = o.value("duration_secs").toDouble(5.0);
     } else {
         it.kind = ItemKind::Video;
         it.video.common = commonFromJson(o.value("common").toObject());
@@ -150,6 +165,41 @@ SubtitleStyle subtitleFromJson(const QJsonObject& o) {
     return s;
 }
 
+const char* vAlignToString(VerticalAlign a) {
+    switch (a) {
+        case VerticalAlign::Top:    return "top";
+        case VerticalAlign::Middle: return "middle";
+        case VerticalAlign::Bottom: return "bottom";
+    }
+    return "middle";
+}
+
+VerticalAlign vAlignFromString(const QString& s) {
+    if (s == "top") return VerticalAlign::Top;
+    if (s == "bottom") return VerticalAlign::Bottom;
+    return VerticalAlign::Middle;
+}
+
+QJsonObject toJson(const TextClipStyle& s) {
+    QJsonObject o;
+    o["font_family"] = s.fontFamily;
+    o["font_size_px"] = s.fontSizePx;
+    o["font_color"] = colorToString(s.fontColor);
+    o["vertical_align"] = vAlignToString(s.verticalAlign);
+    o["default_duration"] = s.defaultDuration;
+    return o;
+}
+
+TextClipStyle textClipFromJson(const QJsonObject& o) {
+    TextClipStyle s;
+    s.fontFamily = o.value("font_family").toString();
+    s.fontSizePx = o.value("font_size_px").toInt(0);
+    s.fontColor = colorFromString(o.value("font_color").toString(), s.fontColor);
+    s.verticalAlign = vAlignFromString(o.value("vertical_align").toString("middle"));
+    s.defaultDuration = o.value("default_duration").toDouble(5.0);
+    return s;
+}
+
 } // namespace
 
 bool ProjectIO::save(const Project& p, const QString& path, QString* err) {
@@ -167,6 +217,7 @@ bool ProjectIO::save(const Project& p, const QString& path, QString* err) {
     defaults["image_duration"] = p.defaults.imageDuration;
     defaults["transition_secs"] = p.defaults.transitionSecs;
     defaults["subtitle"] = toJson(p.defaults.subtitle);
+    defaults["textclip"] = toJson(p.defaults.textClip);
     root["defaults"] = defaults;
 
     QJsonArray items;
@@ -212,10 +263,25 @@ bool ProjectIO::load(Project* p, const QString& path, QStringList* warnings, QSt
     if (defaults.contains("subtitle")) {
         p->defaults.subtitle = subtitleFromJson(defaults.value("subtitle").toObject());
     }
+    if (defaults.contains("textclip")) {
+        p->defaults.textClip = textClipFromJson(defaults.value("textclip").toObject());
+    }
 
     p->items.clear();
     for (auto v : root.value("items").toArray()) {
         Item it = itemFromJson(v.toObject());
+        // Text clips have no source file path; everything else must exist.
+        if (it.kind == ItemKind::TextClip) {
+            const auto& bg = it.textClip.backgroundPath;
+            if (!bg.isEmpty() && !QFileInfo::exists(bg)) {
+                if (warnings) {
+                    warnings->append(QStringLiteral(
+                        "Text-clip background missing: %1").arg(bg));
+                }
+            }
+            p->items.append(it);
+            continue;
+        }
         if (!QFileInfo::exists(it.common().sourcePath)) {
             it.common().sourceMissing = true;
             if (warnings) {

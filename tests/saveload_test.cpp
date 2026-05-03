@@ -44,6 +44,22 @@ int main(int argc, char** argv) {
         r.item.common().used = true;
         p.items.append(r.item);
     }
+    // Add a synthetic text clip to exercise that branch of the model + IO.
+    {
+        vlip::TextClipItem t;
+        t.common.id = QUuid::createUuid();
+        t.common.used = true;
+        t.common.timestamp = QDateTime::currentDateTimeUtc().addYears(-1);
+        t.text = "hello\nworld";
+        t.backgroundPath = "";
+        t.durationSecs = 4.25;
+        p.items.append(vlip::Item::makeTextClip(t));
+    }
+    // Tweak text-clip defaults so we exercise the round-trip too.
+    p.defaults.textClip.fontSizePx = 80;
+    p.defaults.textClip.verticalAlign = vlip::VerticalAlign::Top;
+    p.defaults.textClip.defaultDuration = 6.0;
+
     p.sortChronologically();
     CHECK(!p.items.isEmpty(), "no items imported");
 
@@ -60,6 +76,13 @@ int main(int argc, char** argv) {
     CHECK(reload.canvas.height == p.canvas.height, "canvas.height mismatch");
     CHECK(reload.canvas.fps == p.canvas.fps, "canvas.fps mismatch");
     CHECK(reload.defaults.imageDuration == p.defaults.imageDuration, "imageDuration mismatch");
+    CHECK(reload.defaults.textClip.fontSizePx == p.defaults.textClip.fontSizePx,
+          "textclip fontSize mismatch");
+    CHECK(reload.defaults.textClip.verticalAlign == p.defaults.textClip.verticalAlign,
+          "textclip vAlign mismatch");
+    CHECK(qFuzzyCompare(reload.defaults.textClip.defaultDuration,
+                        p.defaults.textClip.defaultDuration),
+          "textclip default duration mismatch");
     CHECK(reload.items.size() == p.items.size(), "items count mismatch");
 
     for (int i = 0; i < p.items.size(); ++i) {
@@ -69,12 +92,23 @@ int main(int argc, char** argv) {
         CHECK(a.common().id == b.common().id, "id mismatch");
         CHECK(a.common().used == b.common().used, "used mismatch");
         CHECK(a.common().subtitle == b.common().subtitle, "subtitle mismatch");
-        if (a.kind == vlip::ItemKind::Image) {
-            CHECK(qFuzzyCompare(a.image.durationSecs, b.image.durationSecs),
-                  "image durationSecs mismatch");
-        } else {
-            CHECK(qFuzzyCompare(a.video.startSecs + 1, b.video.startSecs + 1), "start mismatch");
-            CHECK(a.video.hasAudio == b.video.hasAudio, "hasAudio mismatch");
+        switch (a.kind) {
+            case vlip::ItemKind::Image:
+                CHECK(qFuzzyCompare(a.image.durationSecs, b.image.durationSecs),
+                      "image durationSecs mismatch");
+                break;
+            case vlip::ItemKind::Video:
+                CHECK(qFuzzyCompare(a.video.startSecs + 1, b.video.startSecs + 1),
+                      "start mismatch");
+                CHECK(a.video.hasAudio == b.video.hasAudio, "hasAudio mismatch");
+                break;
+            case vlip::ItemKind::TextClip:
+                CHECK(a.textClip.text == b.textClip.text, "textclip text mismatch");
+                CHECK(qFuzzyCompare(a.textClip.durationSecs, b.textClip.durationSecs),
+                      "textclip duration mismatch");
+                CHECK(a.textClip.backgroundPath == b.textClip.backgroundPath,
+                      "textclip bg path mismatch");
+                break;
         }
     }
     qInfo("OK: save/load roundtrip preserved %d items", int(p.items.size()));

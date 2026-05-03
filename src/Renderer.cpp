@@ -58,6 +58,28 @@ QString colorToDrawtext(const QColor& c) {
         .arg(c.alphaF(), 0, 'f', 3);
 }
 
+QString textClipDrawText(const QString& text, int canvasH,
+                         const TextClipStyle& style) {
+    if (text.trimmed().isEmpty()) return {};
+    QString font = resolveFontFile(style.fontFamily);
+    int fontSize = style.fontSizePx > 0 ? style.fontSizePx
+                                        : qMax(20, canvasH / 12);
+    QString chain = "drawtext=";
+    if (!font.isEmpty()) {
+        chain += QString("fontfile='%1':").arg(font);
+    }
+    chain += QString("text='%1'").arg(escapeDrawText(text));
+    chain += QString(":fontcolor=%1").arg(colorToDrawtext(style.fontColor));
+    chain += QString(":fontsize=%1").arg(fontSize);
+    chain += ":x=(w-text_w)/2";
+    switch (style.verticalAlign) {
+        case VerticalAlign::Top:    chain += ":y=h/12"; break;
+        case VerticalAlign::Middle: chain += ":y=(h-text_h)/2"; break;
+        case VerticalAlign::Bottom: chain += ":y=h-(text_h)-h/12"; break;
+    }
+    return chain;
+}
+
 QString drawTextChain(const QString& subtitle, int canvasH,
                       const SubtitleStyle& style, double segmentDur) {
     if (subtitle.trimmed().isEmpty()) return {};
@@ -96,7 +118,9 @@ QString Renderer::validate(const Project& p) {
     int usedCount = 0;
     for (const auto& it : p.items) {
         if (!it.common().used) continue;
-        if (it.common().sourceMissing || !QFileInfo::exists(it.common().sourcePath)) continue;
+        // Text clips don't have a source-file path; everything else does.
+        if (it.kind != ItemKind::TextClip
+            && (it.common().sourceMissing || !QFileInfo::exists(it.common().sourcePath))) continue;
         if (it.effectiveDuration() <= 0.001) continue;
         usedCount++;
     }
@@ -156,7 +180,8 @@ QString Renderer::buildAndExecute(const Project& p, const QString& outPath, QStr
     usedItems.reserve(p.items.size());
     for (const auto& it : p.items) {
         if (!it.common().used) continue;
-        if (it.common().sourceMissing || !QFileInfo::exists(it.common().sourcePath)) continue;
+        if (it.kind != ItemKind::TextClip
+            && (it.common().sourceMissing || !QFileInfo::exists(it.common().sourcePath))) continue;
         if (it.effectiveDuration() <= 0.001) continue;
         usedItems.push_back(&it);
     }
@@ -196,7 +221,46 @@ QString Renderer::buildAndExecute(const Project& p, const QString& outPath, QStr
             aFade += QString(",afade=out:st=%1:d=%2").arg(st, 0, 'f', 4).arg(fadeOut, 0, 'f', 4);
         }
 
-        if (it.kind == ItemKind::Image) {
+        if (it.kind == ItemKind::TextClip) {
+            const auto& tc = it.textClip;
+            const auto& tStyle = p.defaults.textClip;
+
+            // Video input: a still background (looped image) if a path is
+            // set, otherwise a solid-colour lavfi source.
+            int bgInIdx;
+            if (!tc.backgroundPath.isEmpty() && QFileInfo::exists(tc.backgroundPath)) {
+                args << "-loop" << "1" << "-t" << QString::number(dur, 'f', 4)
+                     << "-i" << tc.backgroundPath;
+            } else {
+                // No background image → solid black canvas.
+                args << "-f" << "lavfi"
+                     << "-t" << QString::number(dur, 'f', 4)
+                     << "-i" << QString("color=c=black:size=%1x%2:rate=%3")
+                            .arg(W).arg(H).arg(FPS);
+            }
+            bgInIdx = inputIndex++;
+
+            // Silence track for the audio side.
+            args << "-f" << "lavfi" << "-t" << QString::number(dur, 'f', 4)
+                 << "-i" << QString("anullsrc=channel_layout=stereo:sample_rate=%1").arg(sampleRate);
+            int silInIdx = inputIndex++;
+
+            QString chain = QString("[%1:v]").arg(bgInIdx);
+            chain += QString("scale=%1:%2:force_original_aspect_ratio=decrease").arg(W).arg(H);
+            chain += QString(",pad=%1:%2:(ow-iw)/2:(oh-ih)/2:color=black").arg(W).arg(H);
+            chain += QString(",setsar=1,fps=%1,format=yuv420p").arg(FPS);
+            QString dt = textClipDrawText(tc.text, H, tStyle);
+            if (!dt.isEmpty()) chain += "," + dt;
+            chain += vFade;
+            chain += QString("[%1]").arg(vlabel);
+            chains << chain;
+
+            QString achain = QString("[%1:a]aresample=%2,aformat=sample_fmts=fltp:channel_layouts=stereo")
+                .arg(silInIdx).arg(sampleRate);
+            achain += aFade;
+            achain += QString("[%1]").arg(alabel);
+            chains << achain;
+        } else if (it.kind == ItemKind::Image) {
             const auto& img = it.image;
             // Input #inputIndex: image (loop)
             args << "-loop" << "1" << "-t" << QString::number(dur, 'f', 4)
