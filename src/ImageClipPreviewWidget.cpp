@@ -169,7 +169,8 @@ void ImageClipPreviewWidget::requestSubtitleOverlay() {
     m_subtitleOverlay = QImage();
     m_subtitleKey = {};
     if (!m_overlayRenderer || m_subtitleText.trimmed().isEmpty()) return;
-    QString expr = subtitleDrawText(m_subtitleText, m_projectH, m_subtitleStyle, 0.0, false);
+    QString expr = subtitleDrawText(m_subtitleText, m_projectH, m_subtitleStyle,
+                                    0.0, false, previewTextfileDir());
     if (expr.isEmpty()) return;
     m_subtitleKey = TextOverlayRenderer::Key{expr, m_projectW, m_projectH};
     m_subtitleOverlay = m_overlayRenderer->getOrRequest(m_subtitleKey);
@@ -179,7 +180,8 @@ void ImageClipPreviewWidget::requestDatestampOverlay() {
     m_datestampOverlay = QImage();
     m_datestampKey = {};
     if (!m_overlayRenderer || m_datestampText.isEmpty() || !m_datestampStyle.active) return;
-    QString expr = datestampDrawText(m_datestampText, m_projectH, m_datestampStyle);
+    QString expr = datestampDrawText(m_datestampText, m_projectH, m_datestampStyle,
+                                     previewTextfileDir());
     if (expr.isEmpty()) return;
     m_datestampKey = TextOverlayRenderer::Key{expr, m_projectW, m_projectH};
     m_datestampOverlay = m_overlayRenderer->getOrRequest(m_datestampKey);

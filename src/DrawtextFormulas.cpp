@@ -1,13 +1,38 @@
 #include "DrawtextFormulas.hpp"
 
+#include <QCryptographicHash>
+#include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QProcess>
+#include <QStandardPaths>
 #include <QStringList>
 #include <QTimeZone>
 
 namespace vlip {
 
 namespace {
+
+// Materialise `text` as a small file under `workDir` and return the
+// absolute path. The filename is sha1(content).txt so identical content
+// always lands in the same file — preview renders that re-issue the
+// same overlay benefit from caching, and concurrent writes of the same
+// text are idempotent. Returns "" on I/O failure.
+QString writeTextfile(const QString& text, const QString& workDir) {
+    if (workDir.isEmpty()) return {};
+    if (!QDir().mkpath(workDir)) return {};
+    const QByteArray utf8 = text.toUtf8();
+    const QString name =
+        QString::fromLatin1(QCryptographicHash::hash(utf8, QCryptographicHash::Sha1).toHex())
+        + QStringLiteral(".txt");
+    const QString path = QDir(workDir).absoluteFilePath(name);
+    if (!QFileInfo::exists(path)) {
+        QFile f(path);
+        if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate)) return {};
+        if (f.write(utf8) != utf8.size()) return {};
+    }
+    return path;
+}
 
 QString fallbackFontFile() {
     static const QStringList candidates = {
@@ -47,18 +72,15 @@ QString colorToDrawtext(const QColor& c) {
 
 } // namespace
 
-QString escapeDrawText(const QString& text) {
-    // The result is wrapped by callers in single quotes ('…'). Inside
-    // ffmpeg's single-quoted strings every byte is literal except ' itself,
-    // which closes the quoted region — backslashes do *not* escape inside
-    // single quotes. To embed an apostrophe we therefore close the quoted
-    // run, write \' (which is an escaped quote *outside* quotes), and
-    // reopen — the standard '\'' trick. Colons, backslashes, percent signs
-    // and other "specials" are literal inside the quoted run, so they need
-    // no further escaping.
-    QString s = text;
-    s.replace("'", "'\\''");
-    return s;
+QString previewTextfileDir() {
+    static const QString d = []{
+        QString base = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
+        if (base.isEmpty()) base = QDir::tempPath();
+        const QString p = QDir(base).absoluteFilePath(QStringLiteral("vlip-text"));
+        QDir().mkpath(p);
+        return p;
+    }();
+    return d;
 }
 
 QString formatDatestamp(const QDateTime& utc, const QByteArray& tzId,
@@ -77,8 +99,11 @@ QString formatDatestamp(const QDateTime& utc, const QByteArray& tzId,
 }
 
 QString textClipDrawText(const QString& text, int canvasH,
-                         const TextClipStyle& style) {
+                         const TextClipStyle& style,
+                         const QString& textWorkDir) {
     if (text.trimmed().isEmpty()) return {};
+    const QString textPath = writeTextfile(text, textWorkDir);
+    if (textPath.isEmpty()) return {};
     QString font = resolveFontFile(style.fontFamily);
     int fontSize = style.fontSizePx > 0 ? style.fontSizePx
                                         : qMax(20, canvasH / 12);
@@ -86,7 +111,7 @@ QString textClipDrawText(const QString& text, int canvasH,
     if (!font.isEmpty()) {
         chain += QString("fontfile='%1':").arg(font);
     }
-    chain += QString("text='%1'").arg(escapeDrawText(text));
+    chain += QString("textfile='%1'").arg(textPath);
     chain += QString(":fontcolor=%1").arg(colorToDrawtext(style.fontColor));
     chain += QString(":fontsize=%1").arg(fontSize);
     if (style.outlineWidthPx > 0) {
@@ -106,8 +131,11 @@ QString textClipDrawText(const QString& text, int canvasH,
 
 QString subtitleDrawText(const QString& subtitle, int canvasH,
                          const SubtitleStyle& style, double segmentDur,
-                         bool includeVisibilityWindow) {
+                         bool includeVisibilityWindow,
+                         const QString& textWorkDir) {
     if (subtitle.trimmed().isEmpty()) return {};
+    const QString textPath = writeTextfile(subtitle, textWorkDir);
+    if (textPath.isEmpty()) return {};
     QString font = resolveFontFile(style.fontFamily);
     int fontSize = style.fontSizePx > 0 ? style.fontSizePx
                                         : qMax(20, canvasH / 22);
@@ -115,7 +143,7 @@ QString subtitleDrawText(const QString& subtitle, int canvasH,
     if (!font.isEmpty()) {
         chain += QString("fontfile='%1':").arg(font);
     }
-    chain += QString("text='%1'").arg(escapeDrawText(subtitle));
+    chain += QString("textfile='%1'").arg(textPath);
     chain += QString(":fontcolor=%1").arg(colorToDrawtext(style.fontColor));
     chain += QString(":fontsize=%1").arg(fontSize);
     if (style.outlineWidthPx > 0) {
@@ -145,15 +173,18 @@ QString subtitleDrawText(const QString& subtitle, int canvasH,
 }
 
 QString datestampDrawText(const QString& text, int canvasH,
-                          const DatestampStyle& s) {
+                          const DatestampStyle& s,
+                          const QString& textWorkDir) {
     if (!s.active || text.isEmpty()) return {};
+    const QString textPath = writeTextfile(text, textWorkDir);
+    if (textPath.isEmpty()) return {};
     QString font = resolveFontFile(s.fontFamily);
     int fontSize = s.fontSizePx > 0 ? s.fontSizePx : qMax(14, canvasH / 36);
     QString chain = "drawtext=";
     if (!font.isEmpty()) {
         chain += QString("fontfile='%1':").arg(font);
     }
-    chain += QString("text='%1'").arg(escapeDrawText(text));
+    chain += QString("textfile='%1'").arg(textPath);
     chain += ":fontcolor=white";
     chain += QString(":fontsize=%1").arg(fontSize);
     int m = std::max(0, s.marginPx);
