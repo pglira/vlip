@@ -5,13 +5,15 @@
             "label": "build",
             "type": "shell",
             "command": "cmake --build build -j",
-            "problemMatcher": ["$gcc"]
+            "problemMatcher": []
         },
         {
             "label": "build + install",
             "type": "shell",
             "command": "cmake --install build --prefix ~/.local",
-            "dependsOn": ["build"],
+            "dependsOn": [
+                "build"
+            ],
             "group": {
                 "kind": "build",
                 "isDefault": true
