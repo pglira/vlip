@@ -52,6 +52,13 @@ public:
     void applyImageClipDurationToAll(double secs);
     void applyTextClipDurationToAll(double secs);
 
+    // For each calendar day with at least one image / video clip in the
+    // project (counted in the project's date-stamp time zone), insert a
+    // text clip just before the day's first item with the date as its
+    // text (DD.MM.YYYY). Idempotent: skips days that already have a text
+    // clip with the matching date string.
+    void insertDailyDateTextClips();
+
     // Crop UI: ask the preview pane to enter interactive crop mode for the
     // currently selected image clip.
     void beginImageClipCrop();

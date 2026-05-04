@@ -28,6 +28,8 @@
 #include <QFutureWatcher>
 #include <QApplication>
 #include <QFileInfo>
+#include <QSet>
+#include <QTimeZone>
 
 namespace vlip {
 
@@ -259,6 +261,12 @@ void MainWindow::setupMenus() {
                                  "edit/lastTextClipBulkDuration", 5.0);
         if (v) applyTextClipDurationToAll(*v);
     });
+    auto* aDailyDates = textMenu->addAction(tr("Insert &date text clip for each day"));
+    aDailyDates->setToolTip(tr(
+        "For each calendar day with image / video clips, insert a text clip\n"
+        "with the date (DD.MM.YYYY) just before the day's first clip.\n"
+        "Days that already have a matching date text clip are skipped."));
+    connect(aDailyDates, &QAction::triggered, this, &MainWindow::insertDailyDateTextClips);
 }
 
 void MainWindow::persistLayout() {
@@ -600,6 +608,68 @@ void MainWindow::setDefaults(const Defaults& d) {
 void MainWindow::applyImageClipDurationToAll(double secs) {
     m_project.applyImageClipDurationAll(secs);
     onProjectMutated(false);
+}
+
+void MainWindow::insertDailyDateTextClips() {
+    if (m_project.items.isEmpty()) {
+        emit message(tr("No items in the project."));
+        return;
+    }
+
+    // Group days by the project's date-stamp time zone (same convention
+    // as the burned-in date stamp), so labels match what the renderer
+    // overlays.
+    QTimeZone tz = m_project.defaults.timeZone.isEmpty()
+                       ? QTimeZone::systemTimeZone()
+                       : QTimeZone(m_project.defaults.timeZone);
+    if (!tz.isValid()) tz = QTimeZone::systemTimeZone();
+
+    // Sort first so the iteration is in chronological order — that's what
+    // the day-boundary detection relies on.
+    m_project.sortChronologically();
+
+    // Index of date strings already present as text clips, so re-running
+    // the action is idempotent.
+    QSet<QString> existingDateTexts;
+    for (const auto& it : m_project.items) {
+        if (it.kind == ItemKind::TextClip) {
+            existingDateTexts.insert(it.textClip.text);
+        }
+    }
+
+    // Snapshot the current items because we mutate m_project.items in the
+    // loop below.
+    const QVector<Item> originals = m_project.items;
+    QString lastDay;
+    int added = 0;
+    for (const Item& it : originals) {
+        // Day boundaries are derived from the actual media; text clips
+        // (which carry synthesised timestamps) don't define a "day".
+        if (it.kind == ItemKind::TextClip) continue;
+        const QDateTime ts = it.common().timestamp;
+        if (!ts.isValid()) continue;
+        const QString day = ts.toTimeZone(tz).toString("dd.MM.yyyy");
+        if (day == lastDay) continue;
+        lastDay = day;
+        if (existingDateTexts.contains(day)) continue;
+
+        TextClip t;
+        t.common.id = QUuid::createUuid();
+        t.common.used = true;
+        t.common.timestamp = ts.addMSecs(-1);   // sort places it just before the day's first item
+        t.text = day;
+        t.durationSecs = m_project.defaults.textClip.defaultDuration;
+        m_project.items.append(Item::makeTextClip(t));
+        existingDateTexts.insert(day);
+        ++added;
+    }
+
+    if (added == 0) {
+        emit message(tr("No date text clips to insert."));
+        return;
+    }
+    onProjectMutated(true);
+    emit message(tr("Inserted %1 date text clip(s).").arg(added));
 }
 
 QString MainWindow::defaultProjectsDir() const {
