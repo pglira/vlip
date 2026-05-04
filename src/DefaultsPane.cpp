@@ -9,6 +9,7 @@
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QScrollArea>
+#include <QTabWidget>
 #include <QFrame>
 #include <QLabel>
 #include <QFontComboBox>
@@ -25,24 +26,34 @@ namespace vlip {
 
 DefaultsPane::DefaultsPane(MainWindow* mw, QWidget* parent)
     : QWidget(parent), m_mw(mw) {
-    // The pane is a QScrollArea wrapping an inner content widget. All
-    // group boxes are children of `inner`; users get a vertical scrollbar
-    // when the dock is shorter than the contents.
+    // The pane is a QTabWidget; each tab groups settings by scope (what
+    // they affect: the whole canvas, all clips, only images, etc.). Each
+    // tab wraps its content in a QScrollArea so tall tabs remain usable
+    // when the dock is short.
     auto* root = new QVBoxLayout(this);
     root->setContentsMargins(0, 0, 0, 0);
-    auto* scroll = new QScrollArea(this);
-    scroll->setWidgetResizable(true);
-    scroll->setFrameShape(QFrame::NoFrame);
-    scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    auto* inner = new QWidget;
-    scroll->setWidget(inner);
-    root->addWidget(scroll);
+    auto* tabs = new QTabWidget(this);
+    root->addWidget(tabs);
 
-    auto* outer = new QVBoxLayout(inner);
-    outer->setContentsMargins(8, 8, 8, 8);
+    auto addTab = [tabs](const QString& title) -> QVBoxLayout* {
+        auto* scroll = new QScrollArea(tabs);
+        scroll->setWidgetResizable(true);
+        scroll->setFrameShape(QFrame::NoFrame);
+        scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        auto* content = new QWidget;
+        scroll->setWidget(content);
+        auto* lay = new QVBoxLayout(content);
+        lay->setContentsMargins(8, 8, 8, 8);
+        tabs->addTab(scroll, title);
+        return lay;
+    };
 
-    // Canvas group
-    auto* canvas = new QGroupBox(tr("Canvas"), inner);
+    // ----- Output tab: settings that describe the rendered video as a
+    // whole (canvas dimensions and cross-clip transitions).
+    auto* outputTab = addTab(tr("Output"));
+
+    // Canvas
+    auto* canvas = new QGroupBox(tr("Canvas"), this);
     auto* cLay = new QFormLayout(canvas);
     m_canvasPreset = new QComboBox(canvas);
     // userData: w * 1e9 + h * 1e3 + fps. Negative = "Custom" sentinel.
@@ -67,7 +78,7 @@ DefaultsPane::DefaultsPane(MainWindow* mw, QWidget* parent)
     cLay->addRow(tr("Width:"), m_w);
     cLay->addRow(tr("Height:"), m_h);
     cLay->addRow(tr("FPS:"), m_fps);
-    outer->addWidget(canvas);
+    outputTab->addWidget(canvas);
 
     auto syncPresetCombo = [this]() {
         // Find a preset matching the current spinboxes; otherwise show "Custom".
@@ -112,24 +123,6 @@ DefaultsPane::DefaultsPane(MainWindow* mw, QWidget* parent)
             m_mw->setCanvas(w, h, f);
         });
 
-    // Image defaults
-    auto* imgs = new QGroupBox(tr("Images"), this);
-    auto* iLay = new QFormLayout(imgs);
-    m_imgDur = new QDoubleSpinBox(imgs);
-    m_imgDur->setRange(0.1, 600.0);
-    m_imgDur->setDecimals(2);
-    m_imgDur->setSuffix(" s");
-    iLay->addRow(tr("Default duration:"), m_imgDur);
-    outer->addWidget(imgs);
-
-    connect(m_imgDur, qOverload<double>(&QDoubleSpinBox::valueChanged), this,
-        [this](double v) {
-            if (m_suspend) return;
-            Defaults d = m_mw->project().defaults;
-            d.imageDuration = v;
-            m_mw->setDefaults(d);
-        });
-
     // Transitions
     auto* trans = new QGroupBox(tr("Transitions"), this);
     auto* tLay = new QFormLayout(trans);
@@ -140,7 +133,40 @@ DefaultsPane::DefaultsPane(MainWindow* mw, QWidget* parent)
     m_transition->setSuffix(" s");
     m_transition->setToolTip(tr("Fade-out then fade-in between clips. 0 disables transitions."));
     tLay->addRow(tr("Fade duration:"), m_transition);
-    outer->addWidget(trans);
+    outputTab->addWidget(trans);
+    outputTab->addStretch(1);
+
+    connect(m_transition, qOverload<double>(&QDoubleSpinBox::valueChanged), this,
+        [this](double v) {
+            if (m_suspend) return;
+            Defaults d = m_mw->project().defaults;
+            d.transitionSecs = v;
+            m_mw->setDefaults(d);
+        });
+
+    // ----- Image clips tab: settings that only affect image clips -----
+    auto* imgTab = addTab(tr("Image clips"));
+    auto* iLay = new QFormLayout;
+    m_imageClipDuration = new QDoubleSpinBox(this);
+    m_imageClipDuration->setRange(0.1, 600.0);
+    m_imageClipDuration->setDecimals(2);
+    m_imageClipDuration->setSuffix(" s");
+    iLay->addRow(tr("Default duration:"), m_imageClipDuration);
+    imgTab->addLayout(iLay);
+    imgTab->addStretch(1);
+
+    connect(m_imageClipDuration, qOverload<double>(&QDoubleSpinBox::valueChanged), this,
+        [this](double v) {
+            if (m_suspend) return;
+            Defaults d = m_mw->project().defaults;
+            d.imageClipDuration = v;
+            m_mw->setDefaults(d);
+        });
+
+    // ----- Image && video clips tab: settings that overlay onto image and
+    // video clips (subtitles and the burned-in date stamp). Text clips are
+    // not affected by either.
+    auto* ivTab = addTab(tr("Image && video clips"));
 
     // Subtitles
     auto* subs = new QGroupBox(tr("Subtitles"), this);
@@ -172,7 +198,7 @@ DefaultsPane::DefaultsPane(MainWindow* mw, QWidget* parent)
         "How long the subtitle stays on screen at the start of each item.\n"
         "0 = visible for the whole image / video segment."));
     sLay->addRow(tr("Visible for:"), m_subtitleDuration);
-    outer->addWidget(subs);
+    ivTab->addWidget(subs);
 
     auto pushSubtitle = [this]() {
         if (m_suspend) return;
@@ -203,58 +229,59 @@ DefaultsPane::DefaultsPane(MainWindow* mw, QWidget* parent)
         m_mw->setDefaults(d);
     });
 
-    // Text clips
-    auto* tcs = new QGroupBox(tr("Text clips"), this);
-    auto* tcLay = new QFormLayout(tcs);
-    m_tcFont = new QFontComboBox(tcs);
-    tcLay->addRow(tr("Font:"), m_tcFont);
-    m_tcFontSize = new QSpinBox(tcs);
-    m_tcFontSize->setRange(0, 400);
-    m_tcFontSize->setSuffix(" px");
-    m_tcFontSize->setSpecialValueText(tr("auto (canvas-relative)"));
-    tcLay->addRow(tr("Font size:"), m_tcFontSize);
-    m_tcFontColor = new QPushButton(tr("Pick…"), tcs);
-    tcLay->addRow(tr("Text color:"), m_tcFontColor);
-    m_tcVAlign = new QComboBox(tcs);
-    m_tcVAlign->addItem(tr("Top"),    int(VerticalAlign::Top));
-    m_tcVAlign->addItem(tr("Middle"), int(VerticalAlign::Middle));
-    m_tcVAlign->addItem(tr("Bottom"), int(VerticalAlign::Bottom));
-    tcLay->addRow(tr("Vertical align:"), m_tcVAlign);
-    m_tcDuration = new QDoubleSpinBox(tcs);
-    m_tcDuration->setRange(0.1, 600.0);
-    m_tcDuration->setDecimals(2);
-    m_tcDuration->setSuffix(" s");
-    tcLay->addRow(tr("Default duration:"), m_tcDuration);
-    outer->addWidget(tcs);
+    // ----- Text clips tab: settings that only affect text clips -----
+    auto* tcTab = addTab(tr("Text clips"));
+    auto* tcLay = new QFormLayout;
+    m_textClipFont = new QFontComboBox(this);
+    tcLay->addRow(tr("Font:"), m_textClipFont);
+    m_textClipFontSize = new QSpinBox(this);
+    m_textClipFontSize->setRange(0, 400);
+    m_textClipFontSize->setSuffix(" px");
+    m_textClipFontSize->setSpecialValueText(tr("auto (canvas-relative)"));
+    tcLay->addRow(tr("Font size:"), m_textClipFontSize);
+    m_textClipFontColor = new QPushButton(tr("Pick…"), this);
+    tcLay->addRow(tr("Text color:"), m_textClipFontColor);
+    m_textClipVAlign = new QComboBox(this);
+    m_textClipVAlign->addItem(tr("Top"),    int(VerticalAlign::Top));
+    m_textClipVAlign->addItem(tr("Middle"), int(VerticalAlign::Middle));
+    m_textClipVAlign->addItem(tr("Bottom"), int(VerticalAlign::Bottom));
+    tcLay->addRow(tr("Vertical align:"), m_textClipVAlign);
+    m_textClipDuration = new QDoubleSpinBox(this);
+    m_textClipDuration->setRange(0.1, 600.0);
+    m_textClipDuration->setDecimals(2);
+    m_textClipDuration->setSuffix(" s");
+    tcLay->addRow(tr("Default duration:"), m_textClipDuration);
+    tcTab->addLayout(tcLay);
+    tcTab->addStretch(1);
 
     auto pushTextClip = [this]() {
         if (m_suspend) return;
         Defaults d = m_mw->project().defaults;
-        d.textClip.fontFamily   = m_tcFont->currentFont().family();
-        d.textClip.fontSizePx   = m_tcFontSize->value();
-        d.textClip.verticalAlign = VerticalAlign(m_tcVAlign->currentData().toInt());
-        d.textClip.defaultDuration = m_tcDuration->value();
+        d.textClip.fontFamily    = m_textClipFont->currentFont().family();
+        d.textClip.fontSizePx    = m_textClipFontSize->value();
+        d.textClip.verticalAlign = VerticalAlign(m_textClipVAlign->currentData().toInt());
+        d.textClip.defaultDuration = m_textClipDuration->value();
         m_mw->setDefaults(d);
     };
-    connect(m_tcFont, &QFontComboBox::currentFontChanged, this,
+    connect(m_textClipFont, &QFontComboBox::currentFontChanged, this,
             [pushTextClip](const QFont&) { pushTextClip(); });
-    connect(m_tcFontSize, qOverload<int>(&QSpinBox::valueChanged), this,
+    connect(m_textClipFontSize, qOverload<int>(&QSpinBox::valueChanged), this,
             [pushTextClip](int) { pushTextClip(); });
-    connect(m_tcVAlign, qOverload<int>(&QComboBox::currentIndexChanged), this,
+    connect(m_textClipVAlign, qOverload<int>(&QComboBox::currentIndexChanged), this,
             [pushTextClip](int) { pushTextClip(); });
-    connect(m_tcDuration, qOverload<double>(&QDoubleSpinBox::valueChanged), this,
+    connect(m_textClipDuration, qOverload<double>(&QDoubleSpinBox::valueChanged), this,
             [pushTextClip](double) { pushTextClip(); });
-    connect(m_tcFontColor, &QPushButton::clicked, this, [this]() {
+    connect(m_textClipFontColor, &QPushButton::clicked, this, [this]() {
         Defaults d = m_mw->project().defaults;
-        pickColor(m_tcFontColor, d.textClip.fontColor, /*alpha=*/false);
+        pickColor(m_textClipFontColor, d.textClip.fontColor, /*alpha=*/false);
         m_mw->setDefaults(d);
     });
     // Date stamp (per-item timestamp burned into a corner of the canvas)
     auto* ds = new QGroupBox(tr("Date stamp"), this);
     auto* dsLay = new QFormLayout(ds);
-    m_dsActive = new QCheckBox(tr("Burn date/time into images and videos"), ds);
+    m_dsActive = new QCheckBox(tr("Burn date/time into image and video clips"), ds);
     m_dsActive->setToolTip(tr(
-        "Format: DD.MM.YYYY HH:MM. Each item shows its own timestamp.\n"
+        "Format: DD.MM.YYYY HH:MM. Each clip shows its own timestamp.\n"
         "Text clips are not stamped."));
     dsLay->addRow(m_dsActive);
     m_dsFont = new QFontComboBox(ds);
@@ -282,7 +309,8 @@ DefaultsPane::DefaultsPane(MainWindow* mw, QWidget* parent)
     }
     m_timeZone->setToolTip(tr("IANA time-zone id used to render the date/time."));
     dsLay->addRow(tr("Time zone:"), m_timeZone);
-    outer->addWidget(ds);
+    ivTab->addWidget(ds);
+    ivTab->addStretch(1);
 
     auto pushDatestamp = [this]() {
         if (m_suspend) return;
@@ -316,16 +344,6 @@ DefaultsPane::DefaultsPane(MainWindow* mw, QWidget* parent)
     connect(m_timeZone, &QComboBox::currentTextChanged, this,
             [pushDatestamp](const QString&) { pushDatestamp(); });
 
-    outer->addStretch(1);
-
-    connect(m_transition, qOverload<double>(&QDoubleSpinBox::valueChanged), this,
-        [this](double v) {
-            if (m_suspend) return;
-            Defaults d = m_mw->project().defaults;
-            d.transitionSecs = v;
-            m_mw->setDefaults(d);
-        });
-
     refresh();
 }
 
@@ -346,7 +364,7 @@ void DefaultsPane::refresh() {
         }
     }
     m_canvasPreset->setCurrentIndex(presetIdx);
-    m_imgDur->setValue(p.defaults.imageDuration);
+    m_imageClipDuration->setValue(p.defaults.imageClipDuration);
     m_transition->setValue(p.defaults.transitionSecs);
 
     if (!p.defaults.subtitle.fontFamily.isEmpty()) {
@@ -360,13 +378,13 @@ void DefaultsPane::refresh() {
     m_subtitleDuration->setValue(p.defaults.subtitle.visibleSecs);
 
     if (!p.defaults.textClip.fontFamily.isEmpty()) {
-        m_tcFont->setCurrentFont(QFont(p.defaults.textClip.fontFamily));
+        m_textClipFont->setCurrentFont(QFont(p.defaults.textClip.fontFamily));
     }
-    m_tcFontSize->setValue(p.defaults.textClip.fontSizePx);
-    paintSwatch(m_tcFontColor, p.defaults.textClip.fontColor);
-    int vIdx = m_tcVAlign->findData(int(p.defaults.textClip.verticalAlign));
-    if (vIdx >= 0) m_tcVAlign->setCurrentIndex(vIdx);
-    m_tcDuration->setValue(p.defaults.textClip.defaultDuration);
+    m_textClipFontSize->setValue(p.defaults.textClip.fontSizePx);
+    paintSwatch(m_textClipFontColor, p.defaults.textClip.fontColor);
+    int vIdx = m_textClipVAlign->findData(int(p.defaults.textClip.verticalAlign));
+    if (vIdx >= 0) m_textClipVAlign->setCurrentIndex(vIdx);
+    m_textClipDuration->setValue(p.defaults.textClip.defaultDuration);
 
     m_dsActive->setChecked(p.defaults.datestamp.active);
     if (!p.defaults.datestamp.fontFamily.isEmpty()) {

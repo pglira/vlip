@@ -59,24 +59,24 @@ QJsonObject toJson(const Item& it) {
     QJsonObject o;
     o["common"] = toJsonCommon(it.common());
     switch (it.kind) {
-        case ItemKind::Image:
-            o["kind"] = "image";
-            o["duration_secs"] = it.image.durationSecs;
-            if (it.image.crop) o["crop"] = toJson(*it.image.crop);
-            o["src_w"] = it.image.sourceWidth;
-            o["src_h"] = it.image.sourceHeight;
+        case ItemKind::ImageClip:
+            o["kind"] = "image_clip";
+            o["duration_secs"] = it.imageClip.durationSecs;
+            if (it.imageClip.crop) o["crop"] = toJson(*it.imageClip.crop);
+            o["src_w"] = it.imageClip.sourceWidth;
+            o["src_h"] = it.imageClip.sourceHeight;
             break;
-        case ItemKind::Video:
-            o["kind"] = "video";
-            o["start_secs"] = it.video.startSecs;
-            o["end_secs"] = it.video.endSecs;
-            o["source_duration_secs"] = it.video.sourceDurationSecs;
-            o["src_w"] = it.video.sourceWidth;
-            o["src_h"] = it.video.sourceHeight;
-            o["has_audio"] = it.video.hasAudio;
+        case ItemKind::VideoClip:
+            o["kind"] = "video_clip";
+            o["start_secs"] = it.videoClip.startSecs;
+            o["end_secs"] = it.videoClip.endSecs;
+            o["source_duration_secs"] = it.videoClip.sourceDurationSecs;
+            o["src_w"] = it.videoClip.sourceWidth;
+            o["src_h"] = it.videoClip.sourceHeight;
+            o["has_audio"] = it.videoClip.hasAudio;
             break;
         case ItemKind::TextClip:
-            o["kind"] = "textclip";
+            o["kind"] = "text_clip";
             o["text"] = it.textClip.text;
             o["background_path"] = it.textClip.backgroundPath;
             o["duration_secs"] = it.textClip.durationSecs;
@@ -88,28 +88,28 @@ QJsonObject toJson(const Item& it) {
 Item itemFromJson(const QJsonObject& o) {
     Item it;
     QString kind = o.value("kind").toString();
-    if (kind == "image") {
-        it.kind = ItemKind::Image;
-        it.image.common = commonFromJson(o.value("common").toObject());
-        it.image.durationSecs = o.value("duration_secs").toDouble(4.0);
-        if (o.contains("crop")) it.image.crop = rectFromJson(o.value("crop").toObject());
-        it.image.sourceWidth = o.value("src_w").toInt();
-        it.image.sourceHeight = o.value("src_h").toInt();
-    } else if (kind == "textclip") {
+    if (kind == "image_clip") {
+        it.kind = ItemKind::ImageClip;
+        it.imageClip.common = commonFromJson(o.value("common").toObject());
+        it.imageClip.durationSecs = o.value("duration_secs").toDouble(4.0);
+        if (o.contains("crop")) it.imageClip.crop = rectFromJson(o.value("crop").toObject());
+        it.imageClip.sourceWidth = o.value("src_w").toInt();
+        it.imageClip.sourceHeight = o.value("src_h").toInt();
+    } else if (kind == "text_clip") {
         it.kind = ItemKind::TextClip;
         it.textClip.common = commonFromJson(o.value("common").toObject());
         it.textClip.text = o.value("text").toString();
         it.textClip.backgroundPath = o.value("background_path").toString();
         it.textClip.durationSecs = o.value("duration_secs").toDouble(5.0);
     } else {
-        it.kind = ItemKind::Video;
-        it.video.common = commonFromJson(o.value("common").toObject());
-        it.video.startSecs = o.value("start_secs").toDouble(0.0);
-        it.video.endSecs = o.value("end_secs").toDouble(0.0);
-        it.video.sourceDurationSecs = o.value("source_duration_secs").toDouble(0.0);
-        it.video.sourceWidth = o.value("src_w").toInt();
-        it.video.sourceHeight = o.value("src_h").toInt();
-        it.video.hasAudio = o.value("has_audio").toBool(true);
+        it.kind = ItemKind::VideoClip;
+        it.videoClip.common = commonFromJson(o.value("common").toObject());
+        it.videoClip.startSecs = o.value("start_secs").toDouble(0.0);
+        it.videoClip.endSecs = o.value("end_secs").toDouble(0.0);
+        it.videoClip.sourceDurationSecs = o.value("source_duration_secs").toDouble(0.0);
+        it.videoClip.sourceWidth = o.value("src_w").toInt();
+        it.videoClip.sourceHeight = o.value("src_h").toInt();
+        it.videoClip.hasAudio = o.value("has_audio").toBool(true);
     }
     return it;
 }
@@ -251,10 +251,10 @@ bool ProjectIO::save(const Project& p, const QString& path, QString* err) {
     root["canvas"] = canvas;
 
     QJsonObject defaults;
-    defaults["image_duration"] = p.defaults.imageDuration;
+    defaults["image_clip_duration"] = p.defaults.imageClipDuration;
     defaults["transition_secs"] = p.defaults.transitionSecs;
     defaults["subtitle"] = toJson(p.defaults.subtitle);
-    defaults["textclip"] = toJson(p.defaults.textClip);
+    defaults["text_clip"] = toJson(p.defaults.textClip);
     defaults["datestamp"] = toJson(p.defaults.datestamp);
     defaults["time_zone"] = QString::fromUtf8(p.defaults.timeZone);
     root["defaults"] = defaults;
@@ -297,13 +297,13 @@ bool ProjectIO::load(Project* p, const QString& path, QStringList* warnings, QSt
     p->canvas.fps = canvas.value("fps").toInt(30);
 
     auto defaults = root.value("defaults").toObject();
-    p->defaults.imageDuration = defaults.value("image_duration").toDouble(4.0);
+    p->defaults.imageClipDuration = defaults.value("image_clip_duration").toDouble(4.0);
     p->defaults.transitionSecs = defaults.value("transition_secs").toDouble(0.8);
     if (defaults.contains("subtitle")) {
         p->defaults.subtitle = subtitleFromJson(defaults.value("subtitle").toObject());
     }
-    if (defaults.contains("textclip")) {
-        p->defaults.textClip = textClipFromJson(defaults.value("textclip").toObject());
+    if (defaults.contains("text_clip")) {
+        p->defaults.textClip = textClipFromJson(defaults.value("text_clip").toObject());
     }
     if (defaults.contains("datestamp")) {
         p->defaults.datestamp = datestampFromJson(defaults.value("datestamp").toObject());
@@ -335,7 +335,7 @@ bool ProjectIO::load(Project* p, const QString& path, QStringList* warnings, QSt
         } else {
             // thumbPath is a derived path (keyed by mtime/size) — never
             // serialized. Repopulate from the cache, regenerating if needed.
-            const bool isVideo = (it.kind == ItemKind::Video);
+            const bool isVideo = (it.kind == ItemKind::VideoClip);
             it.common().thumbPath =
                 ThumbnailCache::getOrCreate(it.common().sourcePath, isVideo, 256);
         }

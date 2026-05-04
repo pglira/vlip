@@ -10,8 +10,8 @@ class QFrame;
 namespace vlip {
 
 class MainWindow;
-class ImagePreviewWidget;
-class VideoPreviewWidget;
+class ImageClipPreviewWidget;
+class VideoClipPreviewWidget;
 class TextClipPreviewWidget;
 enum class ItemKind;
 
@@ -26,8 +26,8 @@ public slots:
     // Refresh only when the changed item is the one we're showing.
     void onItemChanged(const QUuid& id);
 
-    // Activates the interactive crop tool on the currently selected image.
-    void beginImageCrop();
+    // Activates the interactive crop tool on the currently selected image clip.
+    void beginImageClipCrop();
     // Move keyboard focus to the subtitle / text-clip text editor and
     // pre-select its content for fast overwrite.
     void focusSubtitleEditor();
@@ -43,9 +43,9 @@ private:
     QLineEdit* m_textInput;               // dual-purpose: subtitle / textclip text
     QFrame* m_previewFrame;               // hosts the stack; styled by used state
     QStackedWidget* m_stack;
-    ImagePreviewWidget* m_image;
-    VideoPreviewWidget* m_video;
-    TextClipPreviewWidget* m_text;
+    ImageClipPreviewWidget* m_imageClip;
+    VideoClipPreviewWidget* m_videoClip;
+    TextClipPreviewWidget* m_textClip;
     bool m_suspend = false;
 };
 

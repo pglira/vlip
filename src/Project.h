@@ -12,7 +12,7 @@
 
 namespace vlip {
 
-enum class ItemKind { Image, Video, TextClip };
+enum class ItemKind { ImageClip, VideoClip, TextClip };
 
 struct Common {
     QUuid id;
@@ -27,7 +27,7 @@ struct Common {
     bool sourceMissing = false;
 };
 
-struct ImageItem {
+struct ImageClip {
     Common common;
     double durationSecs = 4.0;
     std::optional<QRectF> crop;     // normalized 0..1 in source pixel space
@@ -35,7 +35,7 @@ struct ImageItem {
     int sourceHeight = 0;
 };
 
-struct VideoItem {
+struct VideoClip {
     Common common;
     double startSecs = 0.0;
     double endSecs = 0.0;           // 0 means "to end"
@@ -45,7 +45,7 @@ struct VideoItem {
     bool hasAudio = true;
 };
 
-struct TextClipItem {
+struct TextClip {
     Common common;                  // sourcePath stays empty for text clips
     QString text;
     QString backgroundPath;         // optional; empty → solid bgColor from defaults
@@ -54,29 +54,29 @@ struct TextClipItem {
 
 struct Item {
     ItemKind kind;
-    ImageItem image;
-    VideoItem video;
-    TextClipItem textClip;
+    ImageClip imageClip;
+    VideoClip videoClip;
+    TextClip textClip;
     Common& common() {
         switch (kind) {
-            case ItemKind::Image:    return image.common;
-            case ItemKind::Video:    return video.common;
-            case ItemKind::TextClip: return textClip.common;
+            case ItemKind::ImageClip: return imageClip.common;
+            case ItemKind::VideoClip: return videoClip.common;
+            case ItemKind::TextClip:  return textClip.common;
         }
-        return image.common;
+        return imageClip.common;
     }
     const Common& common() const {
         switch (kind) {
-            case ItemKind::Image:    return image.common;
-            case ItemKind::Video:    return video.common;
-            case ItemKind::TextClip: return textClip.common;
+            case ItemKind::ImageClip: return imageClip.common;
+            case ItemKind::VideoClip: return videoClip.common;
+            case ItemKind::TextClip:  return textClip.common;
         }
-        return image.common;
+        return imageClip.common;
     }
 
-    static Item makeImage(const ImageItem& i)    { Item it; it.kind = ItemKind::Image;    it.image    = i; return it; }
-    static Item makeVideo(const VideoItem& v)    { Item it; it.kind = ItemKind::Video;    it.video    = v; return it; }
-    static Item makeTextClip(const TextClipItem& t) { Item it; it.kind = ItemKind::TextClip; it.textClip = t; return it; }
+    static Item makeImageClip(const ImageClip& c) { Item it; it.kind = ItemKind::ImageClip; it.imageClip = c; return it; }
+    static Item makeVideoClip(const VideoClip& c) { Item it; it.kind = ItemKind::VideoClip; it.videoClip = c; return it; }
+    static Item makeTextClip (const TextClip&  c) { Item it; it.kind = ItemKind::TextClip;  it.textClip  = c; return it; }
 
     double effectiveDuration() const;
 };
@@ -114,7 +114,7 @@ struct TextClipStyle {
 
 // Burn each item's timestamp (formatted DD.MM.YYYY HH:MM) into a corner of
 // the canvas while that item is on screen. White text, no background.
-// Applied only to image and video items (text clips are skipped).
+// Applied only to image and video clips (text clips are skipped).
 struct DatestampStyle {
     bool active = true;
     QString fontFamily;
@@ -124,7 +124,7 @@ struct DatestampStyle {
 };
 
 struct Defaults {
-    double imageDuration = 4.0;
+    double imageClipDuration = 4.0;
     double transitionSecs = 0.8;    // fade-out/fade-in duration between clips; 0 disables
     SubtitleStyle subtitle;
     TextClipStyle textClip;
@@ -142,7 +142,7 @@ struct Project {
 
     void sortChronologically();
     int indexOfId(const QUuid& id) const;
-    void applyImageDurationAll(double secs);
+    void applyImageClipDurationAll(double secs);
     void applyTextClipDurationAll(double secs);
 };
 

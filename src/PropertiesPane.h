@@ -38,25 +38,25 @@ private:
     QLabel* m_filename;
     QLabel* m_timestamp;
 
-    // Image fields
-    QGroupBox* m_imgGroup;
-    QDoubleSpinBox* m_imgDuration;
+    // Image-clip fields
+    QGroupBox* m_imageClipGroup;
+    QDoubleSpinBox* m_imageClipDuration;
     QPushButton* m_btnCrop;
     QPushButton* m_btnClearCrop;
     QLabel* m_cropLabel;
 
-    // Video fields
-    QGroupBox* m_vidGroup;
-    QDoubleSpinBox* m_vidStart;
-    QDoubleSpinBox* m_vidEnd;
-    QLabel* m_vidInfo;
+    // Video-clip fields
+    QGroupBox* m_videoClipGroup;
+    QDoubleSpinBox* m_videoClipStart;
+    QDoubleSpinBox* m_videoClipEnd;
+    QLabel* m_videoClipInfo;
 
     // Text-clip fields
-    QGroupBox* m_textGroup;
-    QDoubleSpinBox* m_textDuration;
-    QLineEdit* m_textBgPath;
-    QPushButton* m_textBrowseBg;
-    QPushButton* m_textClearBg;
+    QGroupBox* m_textClipGroup;
+    QDoubleSpinBox* m_textClipDuration;
+    QLineEdit* m_textClipBgPath;
+    QPushButton* m_textClipBrowseBg;
+    QPushButton* m_textClipClearBg;
 
     QStackedWidget* m_stack;
 };

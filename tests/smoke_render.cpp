@@ -44,13 +44,13 @@ int main(int argc, char** argv) {
             continue;
         }
         // For testing keep durations small.
-        if (r.item.kind == vlip::ItemKind::Image) {
-            r.item.image.durationSecs = 0.5;
-            r.item.image.common.subtitle = "img: " + fi.fileName();
+        if (r.item.kind == vlip::ItemKind::ImageClip) {
+            r.item.imageClip.durationSecs = 0.5;
+            r.item.imageClip.common.subtitle = "img: " + fi.fileName();
         } else {
-            r.item.video.startSecs = 0.0;
-            r.item.video.endSecs = std::min(1.0, r.item.video.sourceDurationSecs);
-            r.item.video.common.subtitle = "vid: " + fi.fileName();
+            r.item.videoClip.startSecs = 0.0;
+            r.item.videoClip.endSecs = std::min(1.0, r.item.videoClip.sourceDurationSecs);
+            r.item.videoClip.common.subtitle = "vid: " + fi.fileName();
         }
         r.item.common().used = true;
         p.items.append(r.item);
@@ -58,7 +58,7 @@ int main(int argc, char** argv) {
     // Inject a text clip ahead of the first imported item so the smoke
     // render exercises that filter branch as well.
     if (!p.items.isEmpty()) {
-        vlip::TextClipItem t;
+        vlip::TextClip t;
         t.common.id = QUuid::createUuid();
         t.common.used = true;
         t.common.timestamp = p.items.first().common().timestamp.addMSecs(-1);

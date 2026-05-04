@@ -21,7 +21,7 @@ bool Importer::looksLikeVideo(const QString& path) {
     return videoExtensions().contains(s);
 }
 
-ImportResult Importer::importPath(const QString& path, double defaultImageDuration) {
+ImportResult Importer::importPath(const QString& path, double defaultImageClipDuration) {
     ImportResult r;
     QFileInfo fi(path);
     if (!fi.exists()) {
@@ -59,7 +59,7 @@ ImportResult Importer::importPath(const QString& path, double defaultImageDurati
     c.thumbPath = ThumbnailCache::getOrCreate(c.sourcePath, isVideo, 256);
 
     if (isVideo) {
-        VideoItem v;
+        VideoClip v;
         v.common = c;
         v.sourceWidth = probe.width;
         v.sourceHeight = probe.height;
@@ -67,14 +67,14 @@ ImportResult Importer::importPath(const QString& path, double defaultImageDurati
         v.startSecs = 0.0;
         v.endSecs = 0.0; // 0 -> to end
         v.hasAudio = probe.hasAudio;
-        r.item = Item::makeVideo(v);
+        r.item = Item::makeVideoClip(v);
     } else {
-        ImageItem im;
+        ImageClip im;
         im.common = c;
         im.sourceWidth = probe.width;
         im.sourceHeight = probe.height;
-        im.durationSecs = defaultImageDuration;
-        r.item = Item::makeImage(im);
+        im.durationSecs = defaultImageClipDuration;
+        r.item = Item::makeImageClip(im);
     }
     r.ok = true;
     if (uncertain) r.warning = QStringLiteral("Timestamp from file mtime (no metadata).");

@@ -6,11 +6,11 @@ namespace vlip {
 
 double Item::effectiveDuration() const {
     switch (kind) {
-        case ItemKind::Image:
-            return std::max(0.0, image.durationSecs);
-        case ItemKind::Video: {
-            double end = video.endSecs > 0.0 ? video.endSecs : video.sourceDurationSecs;
-            double start = std::max(0.0, video.startSecs);
+        case ItemKind::ImageClip:
+            return std::max(0.0, imageClip.durationSecs);
+        case ItemKind::VideoClip: {
+            double end = videoClip.endSecs > 0.0 ? videoClip.endSecs : videoClip.sourceDurationSecs;
+            double start = std::max(0.0, videoClip.startSecs);
             return std::max(0.0, end - start);
         }
         case ItemKind::TextClip:
@@ -33,12 +33,12 @@ int Project::indexOfId(const QUuid& id) const {
     return -1;
 }
 
-void Project::applyImageDurationAll(double secs) {
+void Project::applyImageClipDurationAll(double secs) {
     // Bulk write to items only; project defaults intentionally untouched
     // so the bulk action is independent of the Project settings pane.
     for (auto& it : items) {
-        if (it.kind == ItemKind::Image) {
-            it.image.durationSecs = secs;
+        if (it.kind == ItemKind::ImageClip) {
+            it.imageClip.durationSecs = secs;
         }
     }
 }

@@ -39,99 +39,99 @@ void PropertiesPane::buildUi() {
     m_stack = new QStackedWidget(this);
     outer->addWidget(m_stack, 1);
 
-    // ---- Image group ----
-    m_imgGroup = new QGroupBox(tr("Image"), this);
-    auto* iLay = new QFormLayout(m_imgGroup);
-    m_imgDuration = new QDoubleSpinBox(m_imgGroup);
-    m_imgDuration->setDecimals(2);
-    m_imgDuration->setRange(0.1, 600.0);
-    m_imgDuration->setSuffix(" s");
-    iLay->addRow(tr("Duration:"), m_imgDuration);
+    // ---- Image-clip group ----
+    m_imageClipGroup = new QGroupBox(tr("Image clip"), this);
+    auto* iLay = new QFormLayout(m_imageClipGroup);
+    m_imageClipDuration = new QDoubleSpinBox(m_imageClipGroup);
+    m_imageClipDuration->setDecimals(2);
+    m_imageClipDuration->setRange(0.1, 600.0);
+    m_imageClipDuration->setSuffix(" s");
+    iLay->addRow(tr("Duration:"), m_imageClipDuration);
 
     auto* cropRow = new QHBoxLayout;
-    m_btnCrop = new QPushButton(tr("Crop…"), m_imgGroup);
+    m_btnCrop = new QPushButton(tr("Crop…"), m_imageClipGroup);
     m_btnCrop->setToolTip(tr("Open the interactive crop tool  (Ctrl+Shift+C)"));
-    m_btnClearCrop = new QPushButton(tr("Clear"), m_imgGroup);
-    m_cropLabel = new QLabel(tr("(none)"), m_imgGroup);
+    m_btnClearCrop = new QPushButton(tr("Clear"), m_imageClipGroup);
+    m_cropLabel = new QLabel(tr("(none)"), m_imageClipGroup);
     cropRow->addWidget(m_btnCrop);
     cropRow->addWidget(m_btnClearCrop);
     cropRow->addWidget(m_cropLabel, 1);
     iLay->addRow(tr("Crop:"), cropRow);
-    m_stack->addWidget(m_imgGroup);
+    m_stack->addWidget(m_imageClipGroup);
 
-    // ---- Video group ----
-    m_vidGroup = new QGroupBox(tr("Video"), this);
-    auto* vLay = new QFormLayout(m_vidGroup);
-    m_vidStart = new QDoubleSpinBox(m_vidGroup);
-    m_vidStart->setDecimals(3);
-    m_vidStart->setRange(0.0, 100000.0);
-    m_vidStart->setSuffix(" s");
-    m_vidEnd = new QDoubleSpinBox(m_vidGroup);
-    m_vidEnd->setDecimals(3);
-    m_vidEnd->setRange(0.0, 100000.0);
-    m_vidEnd->setSuffix(" s");
-    m_vidInfo = new QLabel(tr("—"), m_vidGroup);
-    vLay->addRow(tr("Source duration:"), m_vidInfo);
-    vLay->addRow(tr("Trim start:"), m_vidStart);
-    vLay->addRow(tr("Trim end:"), m_vidEnd);
-    m_stack->addWidget(m_vidGroup);
+    // ---- Video-clip group ----
+    m_videoClipGroup = new QGroupBox(tr("Video clip"), this);
+    auto* vLay = new QFormLayout(m_videoClipGroup);
+    m_videoClipStart = new QDoubleSpinBox(m_videoClipGroup);
+    m_videoClipStart->setDecimals(3);
+    m_videoClipStart->setRange(0.0, 100000.0);
+    m_videoClipStart->setSuffix(" s");
+    m_videoClipEnd = new QDoubleSpinBox(m_videoClipGroup);
+    m_videoClipEnd->setDecimals(3);
+    m_videoClipEnd->setRange(0.0, 100000.0);
+    m_videoClipEnd->setSuffix(" s");
+    m_videoClipInfo = new QLabel(tr("—"), m_videoClipGroup);
+    vLay->addRow(tr("Source duration:"), m_videoClipInfo);
+    vLay->addRow(tr("Trim start:"), m_videoClipStart);
+    vLay->addRow(tr("Trim end:"), m_videoClipEnd);
+    m_stack->addWidget(m_videoClipGroup);
 
     // ---- Text-clip group ----
-    m_textGroup = new QGroupBox(tr("Text clip"), this);
-    auto* tLay = new QFormLayout(m_textGroup);
-    m_textDuration = new QDoubleSpinBox(m_textGroup);
-    m_textDuration->setDecimals(2);
-    m_textDuration->setRange(0.1, 600.0);
-    m_textDuration->setSuffix(" s");
-    tLay->addRow(tr("Duration:"), m_textDuration);
+    m_textClipGroup = new QGroupBox(tr("Text clip"), this);
+    auto* tLay = new QFormLayout(m_textClipGroup);
+    m_textClipDuration = new QDoubleSpinBox(m_textClipGroup);
+    m_textClipDuration->setDecimals(2);
+    m_textClipDuration->setRange(0.1, 600.0);
+    m_textClipDuration->setSuffix(" s");
+    tLay->addRow(tr("Duration:"), m_textClipDuration);
 
     auto* bgRow = new QHBoxLayout;
-    m_textBgPath = new QLineEdit(m_textGroup);
-    m_textBgPath->setReadOnly(true);
-    m_textBgPath->setPlaceholderText(tr("(no background image — solid colour)"));
-    m_textBrowseBg = new QPushButton(tr("Browse…"), m_textGroup);
-    m_textClearBg  = new QPushButton(tr("Clear"),    m_textGroup);
-    bgRow->addWidget(m_textBgPath, 1);
-    bgRow->addWidget(m_textBrowseBg);
-    bgRow->addWidget(m_textClearBg);
+    m_textClipBgPath = new QLineEdit(m_textClipGroup);
+    m_textClipBgPath->setReadOnly(true);
+    m_textClipBgPath->setPlaceholderText(tr("(no background image — solid colour)"));
+    m_textClipBrowseBg = new QPushButton(tr("Browse…"), m_textClipGroup);
+    m_textClipClearBg  = new QPushButton(tr("Clear"),    m_textClipGroup);
+    bgRow->addWidget(m_textClipBgPath, 1);
+    bgRow->addWidget(m_textClipBrowseBg);
+    bgRow->addWidget(m_textClipClearBg);
     tLay->addRow(tr("Background:"), bgRow);
-    m_stack->addWidget(m_textGroup);
+    m_stack->addWidget(m_textClipGroup);
 
     // ---- Empty placeholder ----
     auto* placeholder = new QLabel(tr("No item selected."), this);
     placeholder->setAlignment(Qt::AlignCenter);
     m_stack->addWidget(placeholder);
 
-    connect(m_imgDuration, qOverload<double>(&QDoubleSpinBox::valueChanged),
+    connect(m_imageClipDuration, qOverload<double>(&QDoubleSpinBox::valueChanged),
             this, [this](double v) {
         if (m_suspend) return;
-        m_mw->setImageDuration(m_id, v);
+        m_mw->setImageClipDuration(m_id, v);
     });
 
     connect(m_btnCrop, &QPushButton::clicked, this, [this]() {
         if (m_id.isNull()) return;
-        m_mw->beginImageCrop();
+        m_mw->beginImageClipCrop();
     });
     connect(m_btnClearCrop, &QPushButton::clicked, this, [this]() {
         if (m_id.isNull()) return;
-        m_mw->setImageCrop(m_id, std::nullopt);
+        m_mw->setImageClipCrop(m_id, std::nullopt);
     });
 
     auto pushTrim = [this]() {
         if (m_suspend) return;
-        m_mw->setVideoTrim(m_id, m_vidStart->value(), m_vidEnd->value());
+        m_mw->setVideoClipTrim(m_id, m_videoClipStart->value(), m_videoClipEnd->value());
     };
-    connect(m_vidStart, qOverload<double>(&QDoubleSpinBox::valueChanged),
+    connect(m_videoClipStart, qOverload<double>(&QDoubleSpinBox::valueChanged),
             this, pushTrim);
-    connect(m_vidEnd, qOverload<double>(&QDoubleSpinBox::valueChanged),
+    connect(m_videoClipEnd, qOverload<double>(&QDoubleSpinBox::valueChanged),
             this, pushTrim);
 
-    connect(m_textDuration, qOverload<double>(&QDoubleSpinBox::valueChanged),
+    connect(m_textClipDuration, qOverload<double>(&QDoubleSpinBox::valueChanged),
             this, [this](double v) {
         if (m_suspend || m_id.isNull()) return;
         m_mw->setTextClipDuration(m_id, v);
     });
-    connect(m_textBrowseBg, &QPushButton::clicked, this, [this]() {
+    connect(m_textClipBrowseBg, &QPushButton::clicked, this, [this]() {
         if (m_id.isNull()) return;
         QString path = QFileDialog::getOpenFileName(
             this, tr("Choose background image"),
@@ -140,7 +140,7 @@ void PropertiesPane::buildUi() {
         if (path.isEmpty()) return;
         m_mw->setTextClipBackground(m_id, path);
     });
-    connect(m_textClearBg, &QPushButton::clicked, this, [this]() {
+    connect(m_textClipClearBg, &QPushButton::clicked, this, [this]() {
         if (m_id.isNull()) return;
         m_mw->setTextClipBackground(m_id, QString());
     });
@@ -182,11 +182,11 @@ void PropertiesPane::refresh() {
     m_timestamp->setText(tsText);
 
     switch (it->kind) {
-        case ItemKind::Image:
+        case ItemKind::ImageClip:
             m_stack->setCurrentIndex(0);
-            m_imgDuration->setValue(it->image.durationSecs);
-            if (it->image.crop) {
-                const QRectF& r = *it->image.crop;
+            m_imageClipDuration->setValue(it->imageClip.durationSecs);
+            if (it->imageClip.crop) {
+                const QRectF& r = *it->imageClip.crop;
                 m_cropLabel->setText(QString("x=%1 y=%2 w=%3 h=%4")
                     .arg(r.x(), 0, 'f', 3).arg(r.y(), 0, 'f', 3)
                     .arg(r.width(), 0, 'f', 3).arg(r.height(), 0, 'f', 3));
@@ -196,22 +196,22 @@ void PropertiesPane::refresh() {
                 m_btnClearCrop->setEnabled(false);
             }
             break;
-        case ItemKind::Video:
+        case ItemKind::VideoClip:
             m_stack->setCurrentIndex(1);
-            m_vidInfo->setText(QString("%1 s, %2×%3, audio: %4")
-                .arg(it->video.sourceDurationSecs, 0, 'f', 2)
-                .arg(it->video.sourceWidth).arg(it->video.sourceHeight)
-                .arg(it->video.hasAudio ? tr("yes") : tr("no")));
-            m_vidStart->setRange(0.0, std::max(0.001, it->video.sourceDurationSecs));
-            m_vidEnd->setRange(0.0, std::max(0.001, it->video.sourceDurationSecs));
-            m_vidStart->setValue(it->video.startSecs);
-            m_vidEnd->setValue(it->video.endSecs > 0 ? it->video.endSecs : it->video.sourceDurationSecs);
+            m_videoClipInfo->setText(QString("%1 s, %2×%3, audio: %4")
+                .arg(it->videoClip.sourceDurationSecs, 0, 'f', 2)
+                .arg(it->videoClip.sourceWidth).arg(it->videoClip.sourceHeight)
+                .arg(it->videoClip.hasAudio ? tr("yes") : tr("no")));
+            m_videoClipStart->setRange(0.0, std::max(0.001, it->videoClip.sourceDurationSecs));
+            m_videoClipEnd->setRange(0.0, std::max(0.001, it->videoClip.sourceDurationSecs));
+            m_videoClipStart->setValue(it->videoClip.startSecs);
+            m_videoClipEnd->setValue(it->videoClip.endSecs > 0 ? it->videoClip.endSecs : it->videoClip.sourceDurationSecs);
             break;
         case ItemKind::TextClip:
             m_stack->setCurrentIndex(2);
-            m_textDuration->setValue(it->textClip.durationSecs);
-            m_textBgPath->setText(it->textClip.backgroundPath);
-            m_textClearBg->setEnabled(!it->textClip.backgroundPath.isEmpty());
+            m_textClipDuration->setValue(it->textClip.durationSecs);
+            m_textClipBgPath->setText(it->textClip.backgroundPath);
+            m_textClipClearBg->setEnabled(!it->textClip.backgroundPath.isEmpty());
             break;
     }
     m_suspend = false;

@@ -54,11 +54,11 @@ class MainWindow;
 // Video preview built on Qt 6 Multimedia (QMediaPlayer + QAudioOutput +
 // QVideoWidget). The Qt backend handles A/V sync, codec support, container
 // rotation, and scrubbing natively.
-class VideoPreviewWidget : public QWidget {
+class VideoClipPreviewWidget : public QWidget {
     Q_OBJECT
 public:
-    explicit VideoPreviewWidget(MainWindow* mw, QWidget* parent = nullptr);
-    ~VideoPreviewWidget() override;
+    explicit VideoClipPreviewWidget(MainWindow* mw, QWidget* parent = nullptr);
+    ~VideoClipPreviewWidget() override;
 
     void setItem(const QUuid& id);
     void clear();

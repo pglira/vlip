@@ -1,4 +1,4 @@
-#include "VideoPreviewWidget.h"
+#include "VideoClipPreviewWidget.h"
 #include "MainWindow.h"
 
 #include <QVBoxLayout>
@@ -171,7 +171,7 @@ QString fmtTime(double s) {
 }
 }
 
-VideoPreviewWidget::VideoPreviewWidget(MainWindow* mw, QWidget* parent)
+VideoClipPreviewWidget::VideoClipPreviewWidget(MainWindow* mw, QWidget* parent)
     : QWidget(parent), m_mw(mw) {
     m_player = new QMediaPlayer(this);
     m_audio = new QAudioOutput(this);
@@ -211,7 +211,7 @@ VideoPreviewWidget::VideoPreviewWidget(MainWindow* mw, QWidget* parent)
     m_btnSetEnd   = new QPushButton(tr("Set as End"), this);
     m_pos = new QLabel("00:00.000", this);
     m_dur = new QLabel("/ 00:00.000", this);
-    m_trim = new QLabel(tr("(no video selected)"), this);
+    m_trim = new QLabel(tr("(no video clip selected)"), this);
 
     row->addWidget(m_btnHome);
     row->addWidget(m_btnPlay);
@@ -261,16 +261,16 @@ VideoPreviewWidget::VideoPreviewWidget(MainWindow* mw, QWidget* parent)
         int idx = m_mw->project().indexOfId(m_id);
         if (idx < 0) return;
         const Item& it = m_mw->project().items[idx];
-        if (it.kind != ItemKind::Video) return;
-        m_player->setPosition(qint64(it.video.startSecs * 1000));
+        if (it.kind != ItemKind::VideoClip) return;
+        m_player->setPosition(qint64(it.videoClip.startSecs * 1000));
     });
     connect(m_btnGoEnd, &QPushButton::clicked, this, [this]() {
         if (m_id.isNull()) return;
         int idx = m_mw->project().indexOfId(m_id);
         if (idx < 0) return;
         const Item& it = m_mw->project().items[idx];
-        if (it.kind != ItemKind::Video) return;
-        double e = it.video.endSecs > 0 ? it.video.endSecs : it.video.sourceDurationSecs;
+        if (it.kind != ItemKind::VideoClip) return;
+        double e = it.videoClip.endSecs > 0 ? it.videoClip.endSecs : it.videoClip.sourceDurationSecs;
         m_player->setPosition(qint64(e * 1000));
     });
     connect(m_btnSetStart, &QPushButton::clicked, this, [this]() {
@@ -278,11 +278,11 @@ VideoPreviewWidget::VideoPreviewWidget(MainWindow* mw, QWidget* parent)
         int idx = m_mw->project().indexOfId(m_id);
         if (idx < 0) return;
         const Item& it = m_mw->project().items[idx];
-        if (it.kind != ItemKind::Video) return;
+        if (it.kind != ItemKind::VideoClip) return;
         double cur = m_player->position() / 1000.0;
-        double end = it.video.endSecs > 0 ? it.video.endSecs : it.video.sourceDurationSecs;
+        double end = it.videoClip.endSecs > 0 ? it.videoClip.endSecs : it.videoClip.sourceDurationSecs;
         double s = std::min(cur, std::max(0.0, end - 0.001));
-        m_mw->setVideoTrim(m_id, s, end);
+        m_mw->setVideoClipTrim(m_id, s, end);
         rebuildLabels();
     });
     connect(m_btnSetEnd, &QPushButton::clicked, this, [this]() {
@@ -290,11 +290,11 @@ VideoPreviewWidget::VideoPreviewWidget(MainWindow* mw, QWidget* parent)
         int idx = m_mw->project().indexOfId(m_id);
         if (idx < 0) return;
         const Item& it = m_mw->project().items[idx];
-        if (it.kind != ItemKind::Video) return;
+        if (it.kind != ItemKind::VideoClip) return;
         double cur = m_player->position() / 1000.0;
-        double s = it.video.startSecs;
+        double s = it.videoClip.startSecs;
         double e = std::max(s + 0.001, cur);
-        m_mw->setVideoTrim(m_id, s, e);
+        m_mw->setVideoClipTrim(m_id, s, e);
         rebuildLabels();
     });
 
@@ -302,27 +302,27 @@ VideoPreviewWidget::VideoPreviewWidget(MainWindow* mw, QWidget* parent)
         m_player->setPosition(ms);
     });
 
-    connect(m_player, &QMediaPlayer::positionChanged, this, &VideoPreviewWidget::onPositionChanged);
-    connect(m_player, &QMediaPlayer::durationChanged, this, &VideoPreviewWidget::onDurationChanged);
+    connect(m_player, &QMediaPlayer::positionChanged, this, &VideoClipPreviewWidget::onPositionChanged);
+    connect(m_player, &QMediaPlayer::durationChanged, this, &VideoClipPreviewWidget::onDurationChanged);
     connect(m_player, &QMediaPlayer::playbackStateChanged, this,
-            &VideoPreviewWidget::onPlaybackStateChanged);
+            &VideoClipPreviewWidget::onPlaybackStateChanged);
     connect(m_player, &QMediaPlayer::mediaStatusChanged, this,
-            &VideoPreviewWidget::onMediaStatusChanged);
-    connect(m_player, &QMediaPlayer::errorOccurred, this, &VideoPreviewWidget::onError);
+            &VideoClipPreviewWidget::onMediaStatusChanged);
+    connect(m_player, &QMediaPlayer::errorOccurred, this, &VideoClipPreviewWidget::onError);
 
     setPlayButtonText();
 }
 
-VideoPreviewWidget::~VideoPreviewWidget() {
+VideoClipPreviewWidget::~VideoClipPreviewWidget() {
     m_player->stop();
 }
 
-void VideoPreviewWidget::setItem(const QUuid& id) {
+void VideoClipPreviewWidget::setItem(const QUuid& id) {
     if (id.isNull()) { clear(); return; }
     int idx = m_mw->project().indexOfId(id);
     if (idx < 0) { clear(); return; }
     const Item& it = m_mw->project().items[idx];
-    if (it.kind != ItemKind::Video) { clear(); return; }
+    if (it.kind != ItemKind::VideoClip) { clear(); return; }
 
     // If we're already showing this exact source file, just refresh the
     // markers and labels — don't tear the player down. Otherwise edits
@@ -336,12 +336,12 @@ void VideoPreviewWidget::setItem(const QUuid& id) {
     m_player->stop();
     m_durationMs = 0;
     m_loadedPath = it.common().sourcePath;
-    m_seekOnLoadMs = qint64(it.video.startSecs * 1000);
+    m_seekOnLoadMs = qint64(it.videoClip.startSecs * 1000);
     m_player->setSource(QUrl::fromLocalFile(it.common().sourcePath));
     rebuildLabels();
 }
 
-void VideoPreviewWidget::clear() {
+void VideoClipPreviewWidget::clear() {
     m_id = QUuid();
     m_loadedPath.clear();
     m_seekOnLoadMs = -1;
@@ -352,28 +352,28 @@ void VideoPreviewWidget::clear() {
     m_scrub->clearMarkers();
     m_pos->setText("00:00.000");
     m_dur->setText("/ 00:00.000");
-    m_trim->setText(tr("(no video selected)"));
+    m_trim->setText(tr("(no video clip selected)"));
     m_durationMs = 0;
     setPlayButtonText();
 }
 
-void VideoPreviewWidget::onPositionChanged(qint64 ms) {
+void VideoClipPreviewWidget::onPositionChanged(qint64 ms) {
     m_scrub->setPositionMs(ms);
     m_pos->setText(fmtTime(ms / 1000.0));
 }
 
-void VideoPreviewWidget::onDurationChanged(qint64 ms) {
+void VideoClipPreviewWidget::onDurationChanged(qint64 ms) {
     m_durationMs = ms;
     m_scrub->setTotalMs(ms);
     m_dur->setText("/ " + fmtTime(ms / 1000.0));
     rebuildLabels();
 }
 
-void VideoPreviewWidget::onPlaybackStateChanged(QMediaPlayer::PlaybackState) {
+void VideoClipPreviewWidget::onPlaybackStateChanged(QMediaPlayer::PlaybackState) {
     setPlayButtonText();
 }
 
-void VideoPreviewWidget::onMediaStatusChanged(QMediaPlayer::MediaStatus s) {
+void VideoClipPreviewWidget::onMediaStatusChanged(QMediaPlayer::MediaStatus s) {
     // Once the source is fully buffered, position the playhead at the
     // clip's trim-start so a later Play click begins from the right place.
     // The player stays paused; the canvas remains black until the user
@@ -384,30 +384,30 @@ void VideoPreviewWidget::onMediaStatusChanged(QMediaPlayer::MediaStatus s) {
     }
 }
 
-void VideoPreviewWidget::onError(QMediaPlayer::Error, const QString& msg) {
+void VideoClipPreviewWidget::onError(QMediaPlayer::Error, const QString& msg) {
     qWarning("QMediaPlayer error: %s", qPrintable(msg));
 }
 
-void VideoPreviewWidget::setPlayButtonText() {
+void VideoClipPreviewWidget::setPlayButtonText() {
     QStyle::StandardPixmap sp = (m_player->playbackState() == QMediaPlayer::PlayingState)
         ? QStyle::SP_MediaPause
         : QStyle::SP_MediaPlay;
     m_btnPlay->setIcon(style()->standardIcon(sp));
 }
 
-void VideoPreviewWidget::rebuildLabels() {
+void VideoClipPreviewWidget::rebuildLabels() {
     if (m_id.isNull()) return;
     int idx = m_mw->project().indexOfId(m_id);
     if (idx < 0) return;
     const Item& it = m_mw->project().items[idx];
-    if (it.kind != ItemKind::Video) return;
-    double s = it.video.startSecs;
-    double e = it.video.endSecs > 0 ? it.video.endSecs : it.video.sourceDurationSecs;
+    if (it.kind != ItemKind::VideoClip) return;
+    double s = it.videoClip.startSecs;
+    double e = it.videoClip.endSecs > 0 ? it.videoClip.endSecs : it.videoClip.sourceDurationSecs;
     m_trim->setText(QString(tr("trim %1 → %2  (clip duration %3)"))
         .arg(fmtTime(s)).arg(fmtTime(e)).arg(fmtTime(std::max(0.0, e - s))));
 
     qint64 totalMs = m_durationMs > 0 ? m_durationMs
-                                      : qint64(it.video.sourceDurationSecs * 1000);
+                                      : qint64(it.videoClip.sourceDurationSecs * 1000);
     if (totalMs > 0) {
         if (m_scrub->maximum() != int(totalMs)) m_scrub->setTotalMs(totalMs);
         m_scrub->setMarkers(qint64(s * 1000), qint64(e * 1000));

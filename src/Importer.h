@@ -18,7 +18,7 @@ struct ImportResult {
 // generates a thumbnail, classifies image vs video. Pure: no UI.
 class Importer {
 public:
-    static ImportResult importPath(const QString& path, double defaultImageDuration);
+    static ImportResult importPath(const QString& path, double defaultImageClipDuration);
     static QStringList imageExtensions();
     static QStringList videoExtensions();
     static bool looksLikeImage(const QString& path);

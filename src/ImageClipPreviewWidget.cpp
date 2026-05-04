@@ -1,4 +1,4 @@
-#include "ImagePreviewWidget.h"
+#include "ImageClipPreviewWidget.h"
 #include "CropOverlay.h"
 
 #ifdef VLIP_HAS_HEIF
@@ -58,7 +58,7 @@ QImage loadImage(const QString& path) {
 
 } // namespace
 
-ImagePreviewWidget::ImagePreviewWidget(QWidget* parent) : QWidget(parent) {
+ImageClipPreviewWidget::ImageClipPreviewWidget(QWidget* parent) : QWidget(parent) {
     setMinimumSize(200, 150);
     setAttribute(Qt::WA_OpaquePaintEvent);
     setAutoFillBackground(true);
@@ -77,7 +77,7 @@ ImagePreviewWidget::ImagePreviewWidget(QWidget* parent) : QWidget(parent) {
     });
 }
 
-void ImagePreviewWidget::setImage(const QString& path) {
+void ImageClipPreviewWidget::setImage(const QString& path) {
     if (path == m_path) return;
     m_path = path;
     m_orig = loadImage(path);
@@ -85,12 +85,12 @@ void ImagePreviewWidget::setImage(const QString& path) {
     update();
 }
 
-void ImagePreviewWidget::setCrop(const std::optional<QRectF>& crop) {
+void ImageClipPreviewWidget::setCrop(const std::optional<QRectF>& crop) {
     m_crop = crop;
     update();
 }
 
-void ImagePreviewWidget::setProjectCanvas(int w, int h) {
+void ImageClipPreviewWidget::setProjectCanvas(int w, int h) {
     if (w <= 0 || h <= 0) return;
     if (w == m_projectW && h == m_projectH) return;
     m_projectW = w;
@@ -103,7 +103,7 @@ void ImagePreviewWidget::setProjectCanvas(int w, int h) {
     }
 }
 
-void ImagePreviewWidget::clear() {
+void ImageClipPreviewWidget::clear() {
     m_path.clear();
     m_orig = QImage();
     m_crop.reset();
@@ -111,7 +111,7 @@ void ImagePreviewWidget::clear() {
     update();
 }
 
-QRect ImagePreviewWidget::imagePaintRect() const {
+QRect ImageClipPreviewWidget::imagePaintRect() const {
     if (m_orig.isNull()) return QRect();
     // Crop mode shows the *full* image so the user can pick anywhere;
     // outside crop mode the persisted crop drives what's visible.
@@ -124,13 +124,13 @@ QRect ImagePreviewWidget::imagePaintRect() const {
     return QRect(topLeft, target);
 }
 
-void ImagePreviewWidget::paintEvent(QPaintEvent*) {
+void ImageClipPreviewWidget::paintEvent(QPaintEvent*) {
     QPainter p(this);
     p.fillRect(rect(), palette().window());
     if (m_orig.isNull()) {
         p.setPen(Qt::lightGray);
         p.drawText(rect(), Qt::AlignCenter,
-            !m_path.isEmpty() ? tr("(unable to decode image)") : tr("(no image)"));
+            !m_path.isEmpty() ? tr("(unable to decode image)") : tr("(no image clip)"));
         return;
     }
     QRect dst = imagePaintRect();
@@ -146,11 +146,11 @@ void ImagePreviewWidget::paintEvent(QPaintEvent*) {
     }
 }
 
-void ImagePreviewWidget::resizeEvent(QResizeEvent*) {
+void ImageClipPreviewWidget::resizeEvent(QResizeEvent*) {
     if (m_cropping) positionCropUi();
 }
 
-void ImagePreviewWidget::buildCropUi() {
+void ImageClipPreviewWidget::buildCropUi() {
     if (m_overlay) return;
     m_overlay = new CropOverlay(this);
     m_overlay->hide();
@@ -210,7 +210,7 @@ void ImagePreviewWidget::buildCropUi() {
     });
 }
 
-void ImagePreviewWidget::enterCropMode() {
+void ImageClipPreviewWidget::enterCropMode() {
     if (m_orig.isNull()) return;
     buildCropUi();
 
@@ -235,7 +235,7 @@ void ImagePreviewWidget::enterCropMode() {
     m_cropBar->raise();
 }
 
-void ImagePreviewWidget::exitCropMode() {
+void ImageClipPreviewWidget::exitCropMode() {
     if (!m_cropping) return;
     m_cropping = false;
     if (m_overlay) m_overlay->hide();
@@ -244,7 +244,7 @@ void ImagePreviewWidget::exitCropMode() {
     emit cropModeExited();
 }
 
-void ImagePreviewWidget::positionCropUi() {
+void ImageClipPreviewWidget::positionCropUi() {
     if (!m_overlay) return;
     m_overlay->setImageRect(imagePaintRect());
     QSize hint = m_cropBar->sizeHint();

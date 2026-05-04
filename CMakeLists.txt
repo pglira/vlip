@@ -31,9 +31,9 @@ set(SRCS
     src/PreviewPane.cpp
     src/DefaultsPane.cpp
     src/MessagesPane.cpp
-    src/ImagePreviewWidget.cpp
+    src/ImageClipPreviewWidget.cpp
     src/CropOverlay.cpp
-    src/VideoPreviewWidget.cpp
+    src/VideoClipPreviewWidget.cpp
     src/TextClipPreviewWidget.cpp
     src/Renderer.cpp
 )

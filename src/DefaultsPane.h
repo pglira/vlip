@@ -29,7 +29,7 @@ private:
     MainWindow* m_mw;
     QComboBox *m_canvasPreset;
     QSpinBox *m_w, *m_h, *m_fps;
-    QDoubleSpinBox *m_imgDur;
+    QDoubleSpinBox *m_imageClipDuration;
     QDoubleSpinBox *m_transition;
     QFontComboBox *m_fontFamily;
     QSpinBox *m_fontSize;
@@ -37,11 +37,11 @@ private:
     QComboBox *m_position;
     QDoubleSpinBox *m_subtitleDuration;
     // Text-clip defaults
-    QFontComboBox *m_tcFont;
-    QSpinBox *m_tcFontSize;
-    QPushButton *m_tcFontColor;
-    QComboBox *m_tcVAlign;
-    QDoubleSpinBox *m_tcDuration;
+    QFontComboBox *m_textClipFont;
+    QSpinBox *m_textClipFontSize;
+    QPushButton *m_textClipFontColor;
+    QComboBox *m_textClipVAlign;
+    QDoubleSpinBox *m_textClipDuration;
     // Date-stamp overlay
     QCheckBox *m_dsActive;
     QFontComboBox *m_dsFont;

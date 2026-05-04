@@ -242,13 +242,13 @@ void MainWindow::setupMenus() {
         return std::optional<double>{v};
     };
 
-    auto* imagesMenu = editMenu->addMenu(tr("&Images"));
+    auto* imagesMenu = editMenu->addMenu(tr("&Image clips"));
     auto* aImgApplyDur = imagesMenu->addAction(tr("Apply duration to all items…"));
     connect(aImgApplyDur, &QAction::triggered, this, [this, promptDuration]() {
-        auto v = promptDuration(tr("Apply duration to all images"),
+        auto v = promptDuration(tr("Apply duration to all image clips"),
                                  tr("Duration (seconds):"),
-                                 "edit/lastImageBulkDuration", 4.0);
-        if (v) applyImageDurationToAll(*v);
+                                 "edit/lastImageClipBulkDuration", 4.0);
+        if (v) applyImageClipDurationToAll(*v);
     });
 
     auto* textMenu = editMenu->addMenu(tr("&Text clips"));
@@ -306,7 +306,7 @@ void MainWindow::importPaths(const QStringList& paths) {
     // QtConcurrent::mapped runs Importer::importPath on the global thread
     // pool, one task per file. importPath shells out to ffprobe / ffmpeg
     // per file with no shared mutable state, so this parallelises cleanly.
-    const double dur = m_project.defaults.imageDuration;
+    const double dur = m_project.defaults.imageClipDuration;
     auto worker = [dur](const QString& p) { return Importer::importPath(p, dur); };
 
     auto* watcher = new QFutureWatcher<ImportResult>(this);
@@ -400,17 +400,17 @@ void MainWindow::setSubtitle(const QUuid& id, const QString& s) {
     onItemMutated(id);
 }
 
-void MainWindow::setImageDuration(const QUuid& id, double secs) {
+void MainWindow::setImageClipDuration(const QUuid& id, double secs) {
     auto* it = findItem(id);
-    if (!it || it->kind != ItemKind::Image) return;
-    it->image.durationSecs = std::max(0.05, secs);
+    if (!it || it->kind != ItemKind::ImageClip) return;
+    it->imageClip.durationSecs = std::max(0.05, secs);
     onItemMutated(id);
 }
 
-void MainWindow::setImageCrop(const QUuid& id, const std::optional<QRectF>& rect) {
+void MainWindow::setImageClipCrop(const QUuid& id, const std::optional<QRectF>& rect) {
     auto* it = findItem(id);
-    if (!it || it->kind != ItemKind::Image) return;
-    it->image.crop = rect;
+    if (!it || it->kind != ItemKind::ImageClip) return;
+    it->imageClip.crop = rect;
     onItemMutated(id);
 }
 
@@ -436,7 +436,7 @@ void MainWindow::setTextClipBackground(const QUuid& id, const QString& path) {
 }
 
 QUuid MainWindow::addTextClip(const QUuid& referenceId, InsertPosition pos) {
-    TextClipItem t;
+    TextClip t;
     t.common.id = QUuid::createUuid();
     t.common.used = true;
     t.text = tr("Text");
@@ -475,12 +475,12 @@ void MainWindow::applyTextClipDurationToAll(double secs) {
     onProjectMutated(false);
 }
 
-void MainWindow::beginImageCrop() {
+void MainWindow::beginImageClipCrop() {
     if (m_dockPreview) {
         m_dockPreview->show();   // un-hides the dock if the user closed it
         m_dockPreview->raise();  // brings it to the front of any tab group
     }
-    if (m_preview) m_preview->beginImageCrop();
+    if (m_preview) m_preview->beginImageClipCrop();
 }
 
 void MainWindow::selectNextItem() {
@@ -577,11 +577,11 @@ void MainWindow::focusSubtitleEditor() {
 }
 
 
-void MainWindow::setVideoTrim(const QUuid& id, double startSecs, double endSecs) {
+void MainWindow::setVideoClipTrim(const QUuid& id, double startSecs, double endSecs) {
     auto* it = findItem(id);
-    if (!it || it->kind != ItemKind::Video) return;
-    it->video.startSecs = std::max(0.0, startSecs);
-    it->video.endSecs = std::max(it->video.startSecs + 0.001, endSecs);
+    if (!it || it->kind != ItemKind::VideoClip) return;
+    it->videoClip.startSecs = std::max(0.0, startSecs);
+    it->videoClip.endSecs = std::max(it->videoClip.startSecs + 0.001, endSecs);
     onItemMutated(id);
 }
 
@@ -597,8 +597,8 @@ void MainWindow::setDefaults(const Defaults& d) {
     onProjectMutated(false);
 }
 
-void MainWindow::applyImageDurationToAll(double secs) {
-    m_project.applyImageDurationAll(secs);
+void MainWindow::applyImageClipDurationToAll(double secs) {
+    m_project.applyImageClipDurationAll(secs);
     onProjectMutated(false);
 }
 

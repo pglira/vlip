@@ -1,7 +1,7 @@
 #include "PreviewPane.h"
 #include "MainWindow.h"
-#include "ImagePreviewWidget.h"
-#include "VideoPreviewWidget.h"
+#include "ImageClipPreviewWidget.h"
+#include "VideoClipPreviewWidget.h"
 #include "TextClipPreviewWidget.h"
 #include "Project.h"
 
@@ -33,15 +33,15 @@ PreviewPane::PreviewPane(MainWindow* mw, QWidget* parent)
     m_stack = new QStackedWidget(m_previewFrame);
     frameLay->addWidget(m_stack);
 
-    m_image = new ImagePreviewWidget(this);
-    m_video = new VideoPreviewWidget(mw, this);
-    m_text  = new TextClipPreviewWidget(this);
+    m_imageClip = new ImageClipPreviewWidget(this);
+    m_videoClip = new VideoClipPreviewWidget(mw, this);
+    m_textClip  = new TextClipPreviewWidget(this);
     auto* placeholder = new QLabel(tr("(select an item)"), this);
     placeholder->setAlignment(Qt::AlignCenter);
 
-    m_stack->addWidget(m_image);       // 0
-    m_stack->addWidget(m_video);       // 1
-    m_stack->addWidget(m_text);        // 2
+    m_stack->addWidget(m_imageClip);   // 0
+    m_stack->addWidget(m_videoClip);   // 1
+    m_stack->addWidget(m_textClip);    // 2
     m_stack->addWidget(placeholder);   // 3
 
     m_textInput = new QLineEdit(this);
@@ -59,10 +59,10 @@ PreviewPane::PreviewPane(MainWindow* mw, QWidget* parent)
         else              m_mw->setSubtitle   (m_id, m_textInput->text());
     });
 
-    connect(m_image, &ImagePreviewWidget::cropApplied, this,
+    connect(m_imageClip, &ImageClipPreviewWidget::cropApplied, this,
         [this](const std::optional<QRectF>& rect) {
             if (m_id.isNull()) return;
-            m_mw->setImageCrop(m_id, rect);
+            m_mw->setImageClipCrop(m_id, rect);
         });
 
     refresh();
@@ -74,16 +74,16 @@ void PreviewPane::focusSubtitleEditor() {
     m_textInput->selectAll();
 }
 
-void PreviewPane::beginImageCrop() {
+void PreviewPane::beginImageClipCrop() {
     if (m_id.isNull()) return;
     int idx = m_mw->project().indexOfId(m_id);
     if (idx < 0) return;
     const Item& it = m_mw->project().items[idx];
-    if (it.kind != ItemKind::Image) return;
+    if (it.kind != ItemKind::ImageClip) return;
     if (it.common().sourceMissing) return;
-    m_stack->setCurrentIndex(0);    // make sure image preview is visible
-    m_image->setCrop(it.image.crop);
-    m_image->enterCropMode();
+    m_stack->setCurrentIndex(0);    // make sure image-clip preview is visible
+    m_imageClip->setCrop(it.imageClip.crop);
+    m_imageClip->enterCropMode();
 }
 
 void PreviewPane::onSelectionChanged(const QUuid& id) {
@@ -109,14 +109,14 @@ void PreviewPane::updateUsedFrame(bool present, bool used, bool missing) {
 }
 
 void PreviewPane::refresh() {
-    m_image->setProjectCanvas(m_mw->project().canvas.width,
-                              m_mw->project().canvas.height);
+    m_imageClip->setProjectCanvas(m_mw->project().canvas.width,
+                                  m_mw->project().canvas.height);
     int idx = m_mw->project().indexOfId(m_id);
     m_suspend = true;
     if (idx < 0) {
-        m_image->clear();
-        m_video->clear();
-        m_text->clear();
+        m_imageClip->clear();
+        m_videoClip->clear();
+        m_textClip->clear();
         m_isTextClip = false;
         m_textInput->clear();
         m_textInput->setPlaceholderText(tr("Subtitle"));
@@ -130,8 +130,8 @@ void PreviewPane::refresh() {
     const bool missing = (it.kind != ItemKind::TextClip) && it.common().sourceMissing;
     updateUsedFrame(true, it.common().used, missing);
 
-    // The line edit doubles as: subtitle editor for image/video; text
-    // editor for text clips. Choose binding based on selected kind.
+    // The line edit doubles as: subtitle editor for image / video clips;
+    // text editor for text clips. Choose binding based on selected kind.
     m_isTextClip = (it.kind == ItemKind::TextClip);
     if (m_isTextClip) {
         m_textInput->setPlaceholderText(tr("Text"));
@@ -144,36 +144,36 @@ void PreviewPane::refresh() {
     }
 
     if (missing) {
-        m_image->clear();
-        m_video->clear();
-        m_text->clear();
+        m_imageClip->clear();
+        m_videoClip->clear();
+        m_textClip->clear();
         m_stack->setCurrentIndex(3);
         m_suspend = false;
         return;
     }
 
     switch (it.kind) {
-        case ItemKind::Image:
-            m_video->clear();
-            m_text->clear();
-            m_image->setImage(it.common().sourcePath);
-            m_image->setCrop(it.image.crop);
+        case ItemKind::ImageClip:
+            m_videoClip->clear();
+            m_textClip->clear();
+            m_imageClip->setImage(it.common().sourcePath);
+            m_imageClip->setCrop(it.imageClip.crop);
             m_stack->setCurrentIndex(0);
             break;
-        case ItemKind::Video:
-            m_image->clear();
-            m_text->clear();
-            m_video->setItem(it.common().id);
+        case ItemKind::VideoClip:
+            m_imageClip->clear();
+            m_textClip->clear();
+            m_videoClip->setItem(it.common().id);
             m_stack->setCurrentIndex(1);
             break;
         case ItemKind::TextClip:
-            m_image->clear();
-            m_video->clear();
-            m_text->setData(it.textClip.text,
-                            it.textClip.backgroundPath,
-                            m_mw->project().defaults.textClip,
-                            m_mw->project().canvas.width,
-                            m_mw->project().canvas.height);
+            m_imageClip->clear();
+            m_videoClip->clear();
+            m_textClip->setData(it.textClip.text,
+                                it.textClip.backgroundPath,
+                                m_mw->project().defaults.textClip,
+                                m_mw->project().canvas.width,
+                                m_mw->project().canvas.height);
             m_stack->setCurrentIndex(2);
             break;
     }

@@ -14,10 +14,10 @@ namespace vlip {
 
 class CropOverlay;
 
-class ImagePreviewWidget : public QWidget {
+class ImageClipPreviewWidget : public QWidget {
     Q_OBJECT
 public:
-    explicit ImagePreviewWidget(QWidget* parent = nullptr);
+    explicit ImageClipPreviewWidget(QWidget* parent = nullptr);
     void setImage(const QString& path);
     // Persisted crop applied to the displayed image (normalized 0..1).
     void setCrop(const std::optional<QRectF>& crop);

@@ -31,14 +31,14 @@ int main(int argc, char** argv) {
     p.canvas.width = 1280;
     p.canvas.height = 720;
     p.canvas.fps = 25;
-    p.defaults.imageDuration = 3.5;
+    p.defaults.imageClipDuration = 3.5;
 
     auto entries = d.entryInfoList(QDir::Files | QDir::NoDotAndDotDot, QDir::Name);
     for (const auto& fi : entries) {
-        auto r = vlip::Importer::importPath(fi.absoluteFilePath(), p.defaults.imageDuration);
+        auto r = vlip::Importer::importPath(fi.absoluteFilePath(), p.defaults.imageClipDuration);
         if (!r.ok) continue;
-        if (r.item.kind == vlip::ItemKind::Image) {
-            r.item.image.durationSecs = 5.0;
+        if (r.item.kind == vlip::ItemKind::ImageClip) {
+            r.item.imageClip.durationSecs = 5.0;
         }
         r.item.common().subtitle = "test:" + fi.fileName();
         r.item.common().used = true;
@@ -46,7 +46,7 @@ int main(int argc, char** argv) {
     }
     // Add a synthetic text clip to exercise that branch of the model + IO.
     {
-        vlip::TextClipItem t;
+        vlip::TextClip t;
         t.common.id = QUuid::createUuid();
         t.common.used = true;
         t.common.timestamp = QDateTime::currentDateTimeUtc().addYears(-1);
@@ -75,14 +75,15 @@ int main(int argc, char** argv) {
     CHECK(reload.canvas.width == p.canvas.width, "canvas.width mismatch");
     CHECK(reload.canvas.height == p.canvas.height, "canvas.height mismatch");
     CHECK(reload.canvas.fps == p.canvas.fps, "canvas.fps mismatch");
-    CHECK(reload.defaults.imageDuration == p.defaults.imageDuration, "imageDuration mismatch");
+    CHECK(reload.defaults.imageClipDuration == p.defaults.imageClipDuration,
+          "imageClipDuration mismatch");
     CHECK(reload.defaults.textClip.fontSizePx == p.defaults.textClip.fontSizePx,
-          "textclip fontSize mismatch");
+          "text-clip fontSize mismatch");
     CHECK(reload.defaults.textClip.verticalAlign == p.defaults.textClip.verticalAlign,
-          "textclip vAlign mismatch");
+          "text-clip vAlign mismatch");
     CHECK(qFuzzyCompare(reload.defaults.textClip.defaultDuration,
                         p.defaults.textClip.defaultDuration),
-          "textclip default duration mismatch");
+          "text-clip default duration mismatch");
     CHECK(reload.items.size() == p.items.size(), "items count mismatch");
 
     for (int i = 0; i < p.items.size(); ++i) {
@@ -93,21 +94,21 @@ int main(int argc, char** argv) {
         CHECK(a.common().used == b.common().used, "used mismatch");
         CHECK(a.common().subtitle == b.common().subtitle, "subtitle mismatch");
         switch (a.kind) {
-            case vlip::ItemKind::Image:
-                CHECK(qFuzzyCompare(a.image.durationSecs, b.image.durationSecs),
-                      "image durationSecs mismatch");
+            case vlip::ItemKind::ImageClip:
+                CHECK(qFuzzyCompare(a.imageClip.durationSecs, b.imageClip.durationSecs),
+                      "image-clip durationSecs mismatch");
                 break;
-            case vlip::ItemKind::Video:
-                CHECK(qFuzzyCompare(a.video.startSecs + 1, b.video.startSecs + 1),
+            case vlip::ItemKind::VideoClip:
+                CHECK(qFuzzyCompare(a.videoClip.startSecs + 1, b.videoClip.startSecs + 1),
                       "start mismatch");
-                CHECK(a.video.hasAudio == b.video.hasAudio, "hasAudio mismatch");
+                CHECK(a.videoClip.hasAudio == b.videoClip.hasAudio, "hasAudio mismatch");
                 break;
             case vlip::ItemKind::TextClip:
-                CHECK(a.textClip.text == b.textClip.text, "textclip text mismatch");
+                CHECK(a.textClip.text == b.textClip.text, "text-clip text mismatch");
                 CHECK(qFuzzyCompare(a.textClip.durationSecs, b.textClip.durationSecs),
-                      "textclip duration mismatch");
+                      "text-clip duration mismatch");
                 CHECK(a.textClip.backgroundPath == b.textClip.backgroundPath,
-                      "textclip bg path mismatch");
+                      "text-clip bg path mismatch");
                 break;
         }
     }

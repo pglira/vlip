@@ -308,8 +308,8 @@ QString Renderer::buildAndExecute(const Project& p, const QString& outPath, QStr
             achain += aFade;
             achain += QString("[%1]").arg(alabel);
             chains << achain;
-        } else if (it.kind == ItemKind::Image) {
-            const auto& img = it.image;
+        } else if (it.kind == ItemKind::ImageClip) {
+            const auto& img = it.imageClip;
             // Input #inputIndex: image (loop)
             args << "-loop" << "1" << "-t" << QString::number(dur, 'f', 4)
                  << "-i" << img.common.sourcePath;
@@ -349,7 +349,7 @@ QString Renderer::buildAndExecute(const Project& p, const QString& outPath, QStr
             achain += QString("[%1]").arg(alabel);
             chains << achain;
         } else {
-            const auto& vid = it.video;
+            const auto& vid = it.videoClip;
             // -ss before -i for fast seek; -t for duration after -ss.
             args << "-ss" << QString::number(vid.startSecs, 'f', 4)
                  << "-t" << QString::number(dur, 'f', 4)

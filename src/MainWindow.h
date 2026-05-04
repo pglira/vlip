@@ -35,9 +35,9 @@ public:
     void setSelected(const QUuid& id);
     void setUsed(const QUuid& id, bool used);
     void setSubtitle(const QUuid& id, const QString& s);
-    void setImageDuration(const QUuid& id, double secs);
-    void setImageCrop(const QUuid& id, const std::optional<QRectF>& rect);
-    void setVideoTrim(const QUuid& id, double startSecs, double endSecs);
+    void setImageClipDuration(const QUuid& id, double secs);
+    void setImageClipCrop(const QUuid& id, const std::optional<QRectF>& rect);
+    void setVideoClipTrim(const QUuid& id, double startSecs, double endSecs);
     void setTextClipText(const QUuid& id, const QString& text);
     void setTextClipDuration(const QUuid& id, double secs);
     void setTextClipBackground(const QUuid& id, const QString& path);
@@ -49,12 +49,12 @@ public:
     void setCanvas(int w, int h, int fps);
     void setDefaults(const Defaults& d);
 
-    void applyImageDurationToAll(double secs);
+    void applyImageClipDurationToAll(double secs);
     void applyTextClipDurationToAll(double secs);
 
     // Crop UI: ask the preview pane to enter interactive crop mode for the
-    // currently selected image item.
-    void beginImageCrop();
+    // currently selected image clip.
+    void beginImageClipCrop();
 
     // Move the timeline selection. Wired to Ctrl+Down / Ctrl+Up shortcuts
     // (Application-scope, so they fire from any focused widget).
