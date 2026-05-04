@@ -67,18 +67,20 @@ TimelinePane::TimelinePane(MainWindow* mw, QWidget* parent) : QWidget(parent), m
 
     auto* row = new QHBoxLayout;
     auto* btnImport = new QPushButton(tr("Import…"), this);
-    auto* btnTextBefore = new QPushButton(tr("+ Text ↑"), this);
-    btnTextBefore->setToolTip(tr("Insert a text clip just before the selected item"));
-    auto* btnTextAfter = new QPushButton(tr("+ Text ↓"), this);
-    btnTextAfter->setToolTip(tr("Insert a text clip just after the selected item"));
+    auto* btnInsertText = new QPushButton(tr("Insert text clip  "), this);
+    btnInsertText->setToolTip(tr(
+        "Insert a text clip before or after the currently selected item."));
+    auto* textMenu = new QMenu(btnInsertText);
+    auto* aTextBefore = textMenu->addAction(tr("Before selected item"));
+    auto* aTextAfter  = textMenu->addAction(tr("After selected item"));
+    btnInsertText->setMenu(textMenu);
     auto* btnRemove = new QPushButton(tr("Remove"), this);
     m_chkHideUnused = new QCheckBox(tr("Hide unused"), this);
     m_chkHideUnused->setToolTip(tr(
         "Show only items marked as 'used'. Navigation shortcuts skip hidden items."));
     m_chkHideUnused->setChecked(m_hideUnused);
     row->addWidget(btnImport);
-    row->addWidget(btnTextBefore);
-    row->addWidget(btnTextAfter);
+    row->addWidget(btnInsertText);
     row->addWidget(btnRemove);
     row->addStretch(1);
     row->addWidget(m_chkHideUnused);
@@ -146,10 +148,10 @@ TimelinePane::TimelinePane(MainWindow* mw, QWidget* parent) : QWidget(parent), m
         }
         return id;
     };
-    connect(btnTextBefore, &QPushButton::clicked, this, [this, currentRowId]() {
+    connect(aTextBefore, &QAction::triggered, this, [this, currentRowId]() {
         m_mw->addTextClip(currentRowId(), MainWindow::InsertPosition::Before);
     });
-    connect(btnTextAfter, &QPushButton::clicked, this, [this, currentRowId]() {
+    connect(aTextAfter, &QAction::triggered, this, [this, currentRowId]() {
         m_mw->addTextClip(currentRowId(), MainWindow::InsertPosition::After);
     });
 
