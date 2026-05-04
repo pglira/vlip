@@ -150,11 +150,17 @@ void MainWindow::setupPanes() {
     m_dockProperties->raise();
     resizeDocks({m_dockPreview, m_dockProperties}, {800, 200}, Qt::Vertical);
 
-    // Ctrl+P toggles the Project settings dock — same action the View
-    // menu uses, so the menu also displays the shortcut next to the
-    // entry.
-    m_dockDefaults->toggleViewAction()->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_P));
-    m_dockDefaults->toggleViewAction()->setShortcutContext(Qt::ApplicationShortcut);
+    // Dock-toggle shortcuts. Application-scope so they fire even while
+    // a text editor has focus, and they hang off the dock's
+    // toggleViewAction so the View menu picks up the shortcut hint next
+    // to each entry for free.
+    auto bindDockToggle = [](QDockWidget* dock, const QKeySequence& seq) {
+        QAction* a = dock->toggleViewAction();
+        a->setShortcut(seq);
+        a->setShortcutContext(Qt::ApplicationShortcut);
+    };
+    bindDockToggle(m_dockDefaults, QKeySequence(Qt::CTRL | Qt::Key_P));
+    bindDockToggle(m_dockMessages, QKeySequence(Qt::CTRL | Qt::Key_M));
 
     // Provide a "View" menu listing each pane so the user can hide/show.
     auto* viewMenu = menuBar()->addMenu(tr("&View"));
