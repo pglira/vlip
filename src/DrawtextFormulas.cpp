@@ -48,11 +48,16 @@ QString colorToDrawtext(const QColor& c) {
 } // namespace
 
 QString escapeDrawText(const QString& text) {
+    // The result is wrapped by callers in single quotes ('…'). Inside
+    // ffmpeg's single-quoted strings every byte is literal except ' itself,
+    // which closes the quoted region — backslashes do *not* escape inside
+    // single quotes. To embed an apostrophe we therefore close the quoted
+    // run, write \' (which is an escaped quote *outside* quotes), and
+    // reopen — the standard '\'' trick. Colons, backslashes, percent signs
+    // and other "specials" are literal inside the quoted run, so they need
+    // no further escaping.
     QString s = text;
-    s.replace("\\", "\\\\");
-    s.replace(":", "\\:");
-    s.replace("'", "\\'");
-    s.replace("%", "\\%");
+    s.replace("'", "'\\''");
     return s;
 }
 
