@@ -475,15 +475,59 @@ QString Renderer::appendBackgroundMusicChain(QStringList& args, QStringList& cha
 
     const double transition = std::max(0.0, m_renderProject.defaults.transitionSecs);
 
+    // Carve the timeline into alternating music / silence chunks. The
+    // music's playhead pauses during every video clip and resumes at the
+    // clip's end (rather than the music continuing under a ducked
+    // volume). Silence chunks cover the video-clip ranges so the
+    // concat'd chunks add up to m_totalDuration.
+    struct Chunk {
+        bool isMusic = false;
+        double dur = 0.0;
+        double mStart = 0.0, mEnd = 0.0;  // music time, only for isMusic
+        bool fadeIn = false;              // crossfade in as the previous video ends
+        bool fadeOut = false;             // crossfade out as the next video starts (or render ends)
+    };
+    QVector<Chunk> chunks;
+
+    auto sortedWindows = m_videoWindows;
+    std::sort(sortedWindows.begin(), sortedWindows.end(),
+              [](const auto& a, const auto& b){ return a.first < b.first; });
+
+    double tlCursor = 0.0;
+    double cumulativeMusicTime = 0.0;
+    auto pushMusic = [&](double tlEnd) {
+        if (tlEnd <= tlCursor) return;
+        Chunk m;
+        m.isMusic = true;
+        m.dur     = tlEnd - tlCursor;
+        m.mStart  = cumulativeMusicTime;
+        m.mEnd    = cumulativeMusicTime + m.dur;
+        m.fadeIn  = (tlCursor > 0.0);  // start of timeline gets no fade-in
+        m.fadeOut = true;              // either pre-video or end-of-render
+        cumulativeMusicTime = m.mEnd;
+        chunks.append(m);
+    };
+    for (const auto& vw : sortedWindows) {
+        pushMusic(vw.first);
+        Chunk s;
+        s.isMusic = false;
+        s.dur     = vw.second - vw.first;
+        chunks.append(s);
+        tlCursor = vw.second;
+    }
+    pushMusic(m_totalDuration);
+
+    if (cumulativeMusicTime <= 0.001) {
+        // Entire timeline is video clips — no music plays.
+        return currentAudioLabel;
+    }
+
+    // Add music inputs and concat the playlist into a single stream.
     const int firstMusicIdx = inputIndex;
     for (const QString& path : musicFiles) {
         args << "-i" << path;
         ++inputIndex;
     }
-
-    // Concatenate the playlist into a single stream, then loop+trim it to
-    // exactly m_totalDuration so the duck envelope below has something
-    // bounded to attenuate.
     QString musicConcat;
     for (int i = 0; i < musicFiles.size(); ++i) {
         musicConcat += QString("[%1:a]").arg(firstMusicIdx + i);
@@ -491,42 +535,68 @@ QString Renderer::appendBackgroundMusicChain(QStringList& args, QStringList& cha
     musicConcat += QString("concat=n=%1:v=0:a=1[mc]").arg(musicFiles.size());
     chains << musicConcat;
 
+    // Loop and trim the playlist to the *total music play time* (i.e.
+    // m_totalDuration minus the video-clip durations), then convert to
+    // the canonical fltp/stereo/sample-rate that concat needs.
     chains << QString("[mc]aloop=loop=-1:size=2147483647,atrim=0:%1,asetpts=PTS-STARTPTS,"
                       "aresample=%2,aformat=sample_fmts=fltp:channel_layouts=stereo[ml]")
-              .arg(m_totalDuration, 0, 'f', 4)
+              .arg(cumulativeMusicTime, 0, 'f', 4)
               .arg(kSampleRate);
 
-    // Build a piecewise envelope: 1 outside the duck windows, ramping
-    // 1→0 over `transition` seconds before each video clip, holding 0
-    // during the clip, ramping 0→1 after, and one final 1→0 fade-out
-    // tail so the music ends in lockstep with the visual fade-out.
-    QString envelope = "1";
-    for (const auto& vw : m_videoWindows) {
-        const double s = vw.first, e = vw.second;
-        QString factor;
-        if (transition > 0.0) {
-            factor = QString(
-                "if(lt(t,%1),1,if(lt(t,%2),(%2-t)/%5,if(lt(t,%3),0,if(lt(t,%4),(t-%3)/%5,1))))")
-                .arg(s - transition, 0, 'f', 4)
-                .arg(s,               0, 'f', 4)
-                .arg(e,               0, 'f', 4)
-                .arg(e + transition,  0, 'f', 4)
-                .arg(transition,      0, 'f', 4);
-        } else {
-            factor = QString("if(lt(t,%1),1,if(lt(t,%2),0,1))")
-                .arg(s, 0, 'f', 4)
-                .arg(e, 0, 'f', 4);
+    int musicChunkCount = 0;
+    for (const auto& c : chunks) if (c.isMusic) ++musicChunkCount;
+
+    // asplit the master music into one branch per music chunk so each
+    // chunk can atrim its own slice. With a single music chunk we skip
+    // the split — feed [ml] directly.
+    if (musicChunkCount > 1) {
+        QString split = QString("[ml]asplit=%1").arg(musicChunkCount);
+        for (int i = 0; i < musicChunkCount; ++i) {
+            split += QString("[mks%1]").arg(i);
         }
-        envelope += "*(" + factor + ")";
+        chains << split;
     }
-    if (transition > 0.0) {
-        envelope += QString("*(if(lt(t,%1),1,(%2-t)/%3))")
-            .arg(m_totalDuration - transition, 0, 'f', 4)
-            .arg(m_totalDuration,              0, 'f', 4)
-            .arg(transition,                   0, 'f', 4);
+
+    // Per-chunk filter chains. For music chunks, atrim the right slice
+    // and apply optional crossfade in/out. For silence chunks, an
+    // anullsrc of the matching duration. Each chunk emits [ck<i>].
+    QString concatInputs;
+    int musicIdx = 0;
+    for (int i = 0; i < chunks.size(); ++i) {
+        const auto& c = chunks[i];
+        const QString out = QString("ck%1").arg(i);
+        if (c.isMusic) {
+            const QString src = (musicChunkCount > 1)
+                ? QString("[mks%1]").arg(musicIdx)
+                : QString("[ml]");
+            QString chain = src
+                + QString("atrim=%1:%2,asetpts=PTS-STARTPTS")
+                    .arg(c.mStart, 0, 'f', 4)
+                    .arg(c.mEnd,   0, 'f', 4);
+            const double maxFade = c.dur / 2.0;
+            const double fIn  = (c.fadeIn  && transition > 0.0) ? std::min(transition, maxFade) : 0.0;
+            const double fOut = (c.fadeOut && transition > 0.0) ? std::min(transition, maxFade) : 0.0;
+            if (fIn  > 0.0) chain += QString(",afade=in:st=0:d=%1").arg(fIn, 0, 'f', 4);
+            if (fOut > 0.0) chain += QString(",afade=out:st=%1:d=%2")
+                                    .arg(c.dur - fOut, 0, 'f', 4)
+                                    .arg(fOut,         0, 'f', 4);
+            chain += QString("[%1]").arg(out);
+            chains << chain;
+            ++musicIdx;
+        } else {
+            chains << QString("anullsrc=channel_layout=stereo:sample_rate=%1:duration=%2,"
+                              "aformat=sample_fmts=fltp:channel_layouts=stereo[%3]")
+                      .arg(kSampleRate)
+                      .arg(c.dur, 0, 'f', 4)
+                      .arg(out);
+        }
+        concatInputs += QString("[%1]").arg(out);
     }
-    chains << QString("[ml]volume=eval=frame:volume='%1'[md]").arg(envelope);
-    chains << QString("%1[md]amix=inputs=2:duration=first:dropout_transition=0[afinal]")
+    chains << QString("%1concat=n=%2:v=0:a=1[mfinal]")
+              .arg(concatInputs).arg(chunks.size());
+
+    // Mix the per-clip audio with the chunked music.
+    chains << QString("%1[mfinal]amix=inputs=2:duration=first:dropout_transition=0[afinal]")
               .arg(currentAudioLabel);
     return "[afinal]";
 }
