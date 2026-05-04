@@ -154,6 +154,12 @@ private:
     // mutate the list always need both, so this helper prevents the
     // "saved but stale menu" footgun.
     void setRecentProjects(const QStringList& list);
+
+    // Yes/No confirmation that fires before any action that would
+    // discard the current in-memory project (New, Open, Open Recent,
+    // Quit / window close). Default button is "No" so an accidental
+    // Enter on the dialog doesn't destroy work.
+    bool confirmDiscardCurrentProject(const QString& title);
 };
 
 } // namespace vlip

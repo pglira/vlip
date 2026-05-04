@@ -320,6 +320,10 @@ void MainWindow::restoreLayoutAndGeometry() {
 }
 
 void MainWindow::closeEvent(QCloseEvent* e) {
+    if (!confirmDiscardCurrentProject(tr("Quit"))) {
+        e->ignore();
+        return;
+    }
     persistLayout();
     QMainWindow::closeEvent(e);
 }
@@ -725,6 +729,7 @@ QString MainWindow::defaultProjectsDir() const {
 }
 
 void MainWindow::newProject() {
+    if (!confirmDiscardCurrentProject(tr("New project"))) return;
     m_project = Project();
     m_projectPath.clear();
     m_selectedId = QUuid();
@@ -735,6 +740,7 @@ void MainWindow::newProject() {
 }
 
 void MainWindow::openProject() {
+    if (!confirmDiscardCurrentProject(tr("Open project"))) return;
     QString p = QFileDialog::getOpenFileName(this, tr("Open project"),
         defaultProjectsDir(), tr("vlip projects (*.vlip *.json);;All files (*.*)"));
     if (p.isEmpty()) return;
@@ -788,6 +794,13 @@ void MainWindow::saveProjectAs() {
     rememberRecentProject(p);
 }
 
+bool MainWindow::confirmDiscardCurrentProject(const QString& title) {
+    return QMessageBox::question(this, title,
+        tr("Discard the current project?"),
+        QMessageBox::Yes | QMessageBox::No,
+        QMessageBox::No) == QMessageBox::Yes;
+}
+
 QStringList MainWindow::loadRecentProjects() const {
     QSettings s("vlip", "vlip");
     return s.value("recentProjects").toStringList();
@@ -837,6 +850,7 @@ void MainWindow::rebuildRecentProjectsMenu() {
                 setRecentProjects(l);
                 return;
             }
+            if (!confirmDiscardCurrentProject(tr("Open recent"))) return;
             loadProject(p);
         });
     }
