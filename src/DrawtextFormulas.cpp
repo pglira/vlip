@@ -56,8 +56,9 @@ QString escapeDrawText(const QString& text) {
     return s;
 }
 
-QString formatDatestamp(const QDateTime& utc, const QByteArray& tzId) {
-    if (!utc.isValid()) return {};
+QString formatDatestamp(const QDateTime& utc, const QByteArray& tzId,
+                        const QString& pattern) {
+    if (!utc.isValid() || pattern.isEmpty()) return {};
     QDateTime t = utc;
     t.setTimeSpec(Qt::UTC);
     if (tzId.isEmpty()) {
@@ -67,7 +68,7 @@ QString formatDatestamp(const QDateTime& utc, const QByteArray& tzId) {
         if (z.isValid()) t = t.toTimeZone(z);
         else             t = t.toLocalTime();
     }
-    return t.toString("dd.MM.yyyy HH:mm");
+    return t.toString(pattern);
 }
 
 QString textClipDrawText(const QString& text, int canvasH,

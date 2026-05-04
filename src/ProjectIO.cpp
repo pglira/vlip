@@ -227,6 +227,7 @@ QJsonObject toJson(const DatestampStyle& d) {
     o["font_size_px"] = d.fontSizePx;
     o["corner"] = cornerToString(d.corner);
     o["margin_px"] = d.marginPx;
+    o["format"] = d.format;
     return o;
 }
 
@@ -237,6 +238,7 @@ DatestampStyle datestampFromJson(const QJsonObject& o) {
     d.fontSizePx = o.value("font_size_px").toInt(0);
     d.corner = cornerFromString(o.value("corner").toString("bottom_right"));
     d.marginPx = o.value("margin_px").toInt(20);
+    d.format = o.value("format").toString(d.format);
     return d;
 }
 

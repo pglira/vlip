@@ -15,10 +15,12 @@ namespace vlip {
 // Escape the special characters that drawtext's `text=` option uses.
 QString escapeDrawText(const QString& text);
 
-// Render a UTC timestamp as DD.MM.YYYY HH:MM in the project's
-// time-zone (or system local if `tzId` is empty / invalid). Returns
-// empty if the input is invalid.
-QString formatDatestamp(const QDateTime& utc, const QByteArray& tzId);
+// Render a UTC timestamp using the supplied QDateTime format pattern
+// in the project's time-zone (or system local if `tzId` is empty /
+// invalid). Returns empty if the input is invalid or the pattern is
+// blank.
+QString formatDatestamp(const QDateTime& utc, const QByteArray& tzId,
+                        const QString& pattern);
 
 // Drawtext expression for a text clip. Returns "" for blank text.
 QString textClipDrawText(const QString& text, int canvasH,

@@ -10,6 +10,7 @@ class QComboBox;
 class QPushButton;
 class QCheckBox;
 class QListWidget;
+class QLineEdit;
 
 namespace vlip {
 
@@ -50,6 +51,7 @@ private:
     QComboBox *m_dsCorner;
     QSpinBox *m_dsMargin;
     QComboBox *m_timeZone;
+    QLineEdit *m_dsFormat;
     // Background-music playlist
     QListWidget *m_musicList;
     QPushButton *m_musicAdd, *m_musicRemove, *m_musicUp, *m_musicDown;

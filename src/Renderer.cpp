@@ -285,7 +285,7 @@ QString Renderer::buildAndExecute(const Project& p, const QString& outPath, QStr
             if (!dt.isEmpty()) chain += "," + dt;
             // Per-item date stamp (canvas-space corner overlay).
             QString ds = datestampDrawText(
-                formatDatestamp(img.common.timestamp, p.defaults.timeZone),
+                formatDatestamp(img.common.timestamp, p.defaults.timeZone, p.defaults.datestamp.format),
                 H, p.defaults.datestamp);
             if (!ds.isEmpty()) chain += "," + ds;
             chain += vFade;
@@ -313,7 +313,7 @@ QString Renderer::buildAndExecute(const Project& p, const QString& outPath, QStr
             QString dt = subtitleDrawText(vid.common.subtitle, H, p.defaults.subtitle, dur, true);
             if (!dt.isEmpty()) chain += "," + dt;
             QString ds = datestampDrawText(
-                formatDatestamp(vid.common.timestamp, p.defaults.timeZone),
+                formatDatestamp(vid.common.timestamp, p.defaults.timeZone, p.defaults.datestamp.format),
                 H, p.defaults.datestamp);
             if (!ds.isEmpty()) chain += "," + ds;
             chain += vFade;

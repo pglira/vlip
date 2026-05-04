@@ -207,9 +207,10 @@ void PreviewPane::refresh() {
         return;
     }
 
-    const QString datestampText = formatDatestamp(it.common().timestamp,
-                                                  m_mw->project().defaults.timeZone);
     const auto& datestampStyle = m_mw->project().defaults.datestamp;
+    const QString datestampText = formatDatestamp(it.common().timestamp,
+                                                  m_mw->project().defaults.timeZone,
+                                                  datestampStyle.format);
 
     switch (it.kind) {
         case ItemKind::ImageClip:

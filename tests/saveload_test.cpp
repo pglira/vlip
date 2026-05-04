@@ -64,6 +64,7 @@ int main(int argc, char** argv) {
     p.defaults.textClip.fontColor = QColor(11, 22, 33, 200);
     p.defaults.subtitle.fontColor = QColor(44, 55, 66, 255);
     p.defaults.subtitle.bgColor   = QColor(77, 88, 99, 140);
+    p.defaults.datestamp.format   = "HH:mm";
 
     // Background-music playlist (paths don't have to exist for the
     // round-trip — a missing-file warning is expected on load and is OK).
@@ -102,6 +103,8 @@ int main(int argc, char** argv) {
           "subtitle fontColor mismatch");
     CHECK(reload.defaults.subtitle.bgColor == p.defaults.subtitle.bgColor,
           "subtitle bgColor mismatch");
+    CHECK(reload.defaults.datestamp.format == p.defaults.datestamp.format,
+          "datestamp format mismatch");
     CHECK(reload.items.size() == p.items.size(), "items count mismatch");
     CHECK(reload.backgroundMusic == p.backgroundMusic, "backgroundMusic mismatch");
 

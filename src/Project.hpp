@@ -121,6 +121,10 @@ struct DatestampStyle {
     int fontSizePx = 0;                  // 0 → auto (canvas-relative)
     Corner corner = Corner::BottomRight;
     int marginPx = 20;
+    // QDateTime format pattern (yyyy / MM / dd / HH / mm / ss …). Lets
+    // the user pick e.g. "HH:mm" for time-only or "dd.MM." for a
+    // day-and-month-only stamp.
+    QString format = "dd.MM.yyyy HH:mm";
 };
 
 struct Defaults {

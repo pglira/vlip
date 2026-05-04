@@ -22,6 +22,7 @@
 #include <QPixmap>
 #include <QIcon>
 #include <QListWidget>
+#include <QLineEdit>
 #include <QFileDialog>
 #include <QFileInfo>
 
@@ -312,6 +313,15 @@ DefaultsPane::DefaultsPane(MainWindow* mw, QWidget* parent)
     }
     m_timeZone->setToolTip(tr("IANA time-zone id used to render the date/time."));
     dsLay->addRow(tr("Time zone:"), m_timeZone);
+    m_dsFormat = new QLineEdit(ds);
+    m_dsFormat->setPlaceholderText(QStringLiteral("dd.MM.yyyy HH:mm"));
+    m_dsFormat->setToolTip(tr(
+        "Qt date/time format pattern. Examples:\n"
+        "  dd.MM.yyyy HH:mm   (default)\n"
+        "  HH:mm              (time only)\n"
+        "  dd.MM.             (day and month only)\n"
+        "Codes: yyyy MM dd HH mm ss — see Qt's QDateTime::toString()."));
+    dsLay->addRow(tr("Format:"), m_dsFormat);
     ivTab->addWidget(ds);
     ivTab->addStretch(1);
 
@@ -323,6 +333,7 @@ DefaultsPane::DefaultsPane(MainWindow* mw, QWidget* parent)
         d.datestamp.fontSizePx = m_dsFontSize->value();
         d.datestamp.corner     = Corner(m_dsCorner->currentData().toInt());
         d.datestamp.marginPx   = m_dsMargin->value();
+        d.datestamp.format     = m_dsFormat->text();
         // Combo's userData stores the IANA id (or empty for "system local").
         // For an editable combo the user might also type something — fall
         // back to currentText() if userData is empty AND the field's been
@@ -346,6 +357,7 @@ DefaultsPane::DefaultsPane(MainWindow* mw, QWidget* parent)
             [pushDatestamp](int) { pushDatestamp(); });
     connect(m_timeZone, &QComboBox::currentTextChanged, this,
             [pushDatestamp](const QString&) { pushDatestamp(); });
+    connect(m_dsFormat, &QLineEdit::editingFinished, this, pushDatestamp);
 
     // ----- Background music tab: project-wide music playlist that plays
     // continuously over the rendered video, ducked around video clips.
@@ -455,6 +467,7 @@ void DefaultsPane::refresh() {
     int cIdx = m_dsCorner->findData(int(p.defaults.datestamp.corner));
     if (cIdx >= 0) m_dsCorner->setCurrentIndex(cIdx);
     m_dsMargin->setValue(p.defaults.datestamp.marginPx);
+    m_dsFormat->setText(p.defaults.datestamp.format);
     {
         QString tz = QString::fromUtf8(p.defaults.timeZone);
         int tzIdx = m_timeZone->findData(tz);
