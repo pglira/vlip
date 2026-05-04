@@ -17,6 +17,7 @@
 #include <QShortcut>
 #include <QSignalBlocker>
 #include <cstring>
+#include <functional>
 
 namespace vlip {
 
@@ -78,6 +79,19 @@ ImageClipPreviewWidget::ImageClipPreviewWidget(TextOverlayRenderer* overlayRende
         if (!isVisible() || m_orig.isNull() || m_cropping) return;
         enterCropMode();
     });
+    // While crop mode is open: Enter applies, Esc cancels. The lambdas
+    // gate on m_cropping so the shortcuts are inert at every other time
+    // and don't steal Enter/Esc from focused editors.
+    auto bindCropKey = [this](Qt::Key key, std::function<void()> action) {
+        auto* shortcut = new QShortcut(QKeySequence(key), this);
+        shortcut->setContext(Qt::WindowShortcut);
+        connect(shortcut, &QShortcut::activated, this, [this, action]() {
+            if (m_cropping) action();
+        });
+    };
+    bindCropKey(Qt::Key_Return, [this]() { if (m_btnApply) m_btnApply->click(); });
+    bindCropKey(Qt::Key_Enter,  [this]() { if (m_btnApply) m_btnApply->click(); });
+    bindCropKey(Qt::Key_Escape, [this]() { exitCropMode(); });
 
     if (m_overlayRenderer) {
         connect(m_overlayRenderer, &TextOverlayRenderer::overlayReady, this,
