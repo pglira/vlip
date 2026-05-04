@@ -201,6 +201,13 @@ void MainWindow::setupMenus() {
     aOpen->setShortcut(QKeySequence::Open);
     connect(aOpen, &QAction::triggered, this, &MainWindow::openProject);
 
+    // Note: 'r' is already taken by &Render, so use 't' as the access
+    // key here ("Open recen&t"). With Qt::ToolTipsVisible the per-item
+    // tooltips below actually show on hover.
+    m_recentMenu = fileMenu->addMenu(tr("Open recen&t"));
+    m_recentMenu->setToolTipsVisible(true);
+    rebuildRecentProjectsMenu();
+
     auto* aSave = fileMenu->addAction(tr("&Save"));
     aSave->setShortcut(QKeySequence::Save);
     connect(aSave, &QAction::triggered, this, &MainWindow::saveProject);
@@ -744,6 +751,7 @@ bool MainWindow::loadProject(const QString& path) {
     emit selectionChanged(m_selectedId);
     emit projectChanged();
     emit message(tr("Loaded %1 (%2 items)").arg(path).arg(m_project.items.size()));
+    rememberRecentProject(path);
     return true;
 }
 
@@ -755,6 +763,7 @@ void MainWindow::saveProject() {
         return;
     }
     emit message(tr("Saved %1").arg(m_projectPath));
+    rememberRecentProject(m_projectPath);
 }
 
 void MainWindow::saveProjectAs() {
@@ -770,6 +779,66 @@ void MainWindow::saveProjectAs() {
     m_projectPath = p;
     setWindowTitle(QString("vlip — %1").arg(QFileInfo(p).fileName()));
     emit message(tr("Saved %1").arg(p));
+    rememberRecentProject(p);
+}
+
+QStringList MainWindow::loadRecentProjects() const {
+    QSettings s("vlip", "vlip");
+    return s.value("recentProjects").toStringList();
+}
+
+void MainWindow::setRecentProjects(const QStringList& list) {
+    QSettings("vlip", "vlip").setValue("recentProjects", list);
+    rebuildRecentProjectsMenu();
+}
+
+void MainWindow::rememberRecentProject(const QString& path) {
+    const QString abs = QFileInfo(path).absoluteFilePath();
+    QStringList list = loadRecentProjects();
+    list.removeAll(abs);
+    list.prepend(abs);
+    while (list.size() > kMaxRecentProjects) list.removeLast();
+    setRecentProjects(list);
+}
+
+void MainWindow::rebuildRecentProjectsMenu() {
+    if (!m_recentMenu) return;
+    m_recentMenu->clear();
+    const QStringList list = loadRecentProjects();
+    if (list.isEmpty()) {
+        QAction* empty = m_recentMenu->addAction(tr("(no recent projects)"));
+        empty->setEnabled(false);
+        return;
+    }
+    // Numbers 1..9 are access keys; entries past 9 are mouse-only since
+    // a QMenu access key is a single character.
+    for (int i = 0; i < list.size(); ++i) {
+        const QString p = list[i];
+        // '&' is the menu access-key marker — escape it so a path like
+        // "AT&T project.vlip" renders verbatim instead of stealing 'T'.
+        const QString safeName = QFileInfo(p).fileName().replace('&', "&&");
+        const QString label = (i < 9)
+            ? QString("&%1  %2").arg(i + 1).arg(safeName)
+            : QString("    %1").arg(safeName);
+        QAction* a = m_recentMenu->addAction(label);
+        a->setToolTip(p);
+        connect(a, &QAction::triggered, this, [this, p]() {
+            if (!QFileInfo::exists(p)) {
+                emit message(tr("Recent project no longer exists, removing: %1").arg(p),
+                             MessagesPane::Warning);
+                QStringList l = loadRecentProjects();
+                l.removeAll(p);
+                setRecentProjects(l);
+                return;
+            }
+            loadProject(p);
+        });
+    }
+    m_recentMenu->addSeparator();
+    QAction* clear = m_recentMenu->addAction(tr("&Clear list"));
+    connect(clear, &QAction::triggered, this, [this]() {
+        setRecentProjects({});
+    });
 }
 
 void MainWindow::renderTo() {

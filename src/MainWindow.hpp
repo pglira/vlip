@@ -8,6 +8,7 @@
 
 class QDockWidget;
 class QLabel;
+class QMenu;
 class QPushButton;
 
 namespace vlip {
@@ -141,6 +142,18 @@ private:
 
     Renderer* m_renderer = nullptr;
     QPushButton* m_cancelRenderBtn = nullptr;  // shown in menu bar's right corner only while rendering
+    QMenu* m_recentMenu = nullptr;             // File → Open Recent submenu
+
+    // Recent-projects MRU list, persisted via QSettings under
+    // "recentProjects". Updated whenever a project is loaded or saved.
+    static constexpr int kMaxRecentProjects = 10;
+    void rebuildRecentProjectsMenu();
+    void rememberRecentProject(const QString& path);
+    QStringList loadRecentProjects() const;
+    // Persist `list` and rebuild the submenu in lockstep — callers that
+    // mutate the list always need both, so this helper prevents the
+    // "saved but stale menu" footgun.
+    void setRecentProjects(const QStringList& list);
 };
 
 } // namespace vlip
