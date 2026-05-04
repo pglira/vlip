@@ -125,7 +125,7 @@ struct DatestampStyle {
 
 struct Defaults {
     double imageDuration = 4.0;
-    double transitionSecs = 0.5;    // fade-out/fade-in duration between clips; 0 disables
+    double transitionSecs = 0.8;    // fade-out/fade-in duration between clips; 0 disables
     SubtitleStyle subtitle;
     TextClipStyle textClip;
     DatestampStyle datestamp;

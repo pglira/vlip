@@ -298,7 +298,7 @@ bool ProjectIO::load(Project* p, const QString& path, QStringList* warnings, QSt
 
     auto defaults = root.value("defaults").toObject();
     p->defaults.imageDuration = defaults.value("image_duration").toDouble(4.0);
-    p->defaults.transitionSecs = defaults.value("transition_secs").toDouble(0.5);
+    p->defaults.transitionSecs = defaults.value("transition_secs").toDouble(0.8);
     if (defaults.contains("subtitle")) {
         p->defaults.subtitle = subtitleFromJson(defaults.value("subtitle").toObject());
     }
