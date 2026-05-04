@@ -1,6 +1,7 @@
 #include "Renderer.hpp"
 #include "DrawtextFormulas.hpp"
 
+#include <QFile>
 #include <QFileInfo>
 #include <QDir>
 #include <QStandardPaths>
@@ -40,6 +41,7 @@ bool Renderer::isRunning() const { return m_proc && m_proc->state() != QProcess:
 
 void Renderer::cancel() {
     if (m_proc && m_proc->state() != QProcess::NotRunning) {
+        m_cancelRequested = true;
         m_proc->terminate();
         if (!m_proc->waitForFinished(2000)) m_proc->kill();
     }
@@ -61,6 +63,7 @@ bool Renderer::start(const Project& p, const QString& outPath) {
     m_logTail.clear();
     m_totalDuration = 0.0;
     m_lastProgressLogMs = 0;
+    m_cancelRequested = false;
 
     QString runErr;
     QString cmdLine = buildAndExecute(p, outPath, &runErr);
@@ -395,6 +398,14 @@ QString Renderer::buildAndExecute(const Project& p, const QString& outPath, QStr
     });
     connect(m_proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
             this, [this](int code, QProcess::ExitStatus status) {
+        if (m_cancelRequested) {
+            // ffmpeg's partial output is unplayable (no finalised moov) —
+            // drop it so the user isn't left with a broken file.
+            QFile::remove(m_outPath);
+            m_cancelRequested = false;
+            emit cancelled();
+            return;
+        }
         bool ok = (status == QProcess::NormalExit) && code == 0;
         if (ok) {
             emit finished(true, m_outPath);

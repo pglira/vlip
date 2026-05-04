@@ -10,6 +10,7 @@
 
 #include <QDockWidget>
 #include <QMenuBar>
+#include <QPushButton>
 #include <QMenu>
 #include <QAction>
 #include <QFileDialog>
@@ -74,6 +75,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
         emit message(s);
     });
     connect(m_renderer, &Renderer::finished, this, [this](bool ok, const QString& msg) {
+        if (m_cancelRenderBtn) m_cancelRenderBtn->setVisible(false);
         if (ok) {
             emit message(tr("Render complete: %1").arg(msg));
             QMessageBox::information(this, tr("Render"), tr("Render complete:\n%1").arg(msg));
@@ -81,6 +83,10 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
             emit message(tr("Render failed: %1").arg(msg), MessagesPane::Error);
             QMessageBox::critical(this, tr("Render failed"), msg);
         }
+    });
+    connect(m_renderer, &Renderer::cancelled, this, [this]() {
+        if (m_cancelRenderBtn) m_cancelRenderBtn->setVisible(false);
+        emit message(tr("Render cancelled."));
     });
 
     // Application-scope navigation shortcuts. Fire from any focused
@@ -225,6 +231,16 @@ void MainWindow::setupMenus() {
     auto* aQuit = fileMenu->addAction(tr("&Quit"));
     aQuit->setShortcut(QKeySequence::Quit);
     connect(aQuit, &QAction::triggered, this, &QWidget::close);
+
+    // Cancel-render button — sits in the menu bar's right corner and is
+    // only visible while a render is in progress.
+    m_cancelRenderBtn = new QPushButton(tr("Cancel render"), this);
+    m_cancelRenderBtn->setVisible(false);
+    menuBar()->setCornerWidget(m_cancelRenderBtn, Qt::TopRightCorner);
+    connect(m_cancelRenderBtn, &QPushButton::clicked, this, [this]() {
+        m_cancelRenderBtn->setEnabled(false);  // guard against double-click during the kill window
+        m_renderer->cancel();
+    });
 
     // Edit menu — bulk actions grouped by item kind. Each action prompts
     // for a duration. The prompt seeds with the last value the user
@@ -766,7 +782,9 @@ void MainWindow::renderTo() {
     if (out.isEmpty()) return;
     if (!out.endsWith(".mp4", Qt::CaseInsensitive)) out += ".mp4";
     emit message(tr("Rendering to %1…").arg(out));
-    m_renderer->start(m_project, out);
+    m_cancelRenderBtn->setEnabled(true);
+    m_cancelRenderBtn->setVisible(true);
+    m_renderer->start(m_project, out);  // synchronous validation failure will hide the button via finished()
 }
 
 } // namespace vlip

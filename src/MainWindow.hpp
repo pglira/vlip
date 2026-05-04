@@ -8,6 +8,7 @@
 
 class QDockWidget;
 class QLabel;
+class QPushButton;
 
 namespace vlip {
 
@@ -135,6 +136,7 @@ private:
     QDockWidget* m_dockMessages = nullptr;
 
     Renderer* m_renderer = nullptr;
+    QPushButton* m_cancelRenderBtn = nullptr;  // shown in menu bar's right corner only while rendering
 };
 
 } // namespace vlip

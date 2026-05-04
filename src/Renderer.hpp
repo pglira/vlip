@@ -35,6 +35,10 @@ public:
 signals:
     void log(const QString& line);
     void finished(bool ok, const QString& message);
+    // Emitted instead of finished() when the user invoked cancel(). Lets
+    // the UI show a neutral "cancelled" message instead of treating the
+    // non-zero ffmpeg exit as a render failure.
+    void cancelled();
 
 private:
     QProcess* m_proc = nullptr;
@@ -43,6 +47,7 @@ private:
     QString m_workDir; // temp dir cleanup
     double m_totalDuration = 0.0;
     qint64 m_lastProgressLogMs = 0;
+    bool m_cancelRequested = false;
 
     QString buildAndExecute(const Project& p, const QString& outPath, QString* err);
     // If `backgroundMusic` is non-empty and the rendered video has any
