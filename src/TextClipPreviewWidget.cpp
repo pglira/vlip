@@ -1,4 +1,5 @@
 #include "TextClipPreviewWidget.hpp"
+#include "DrawtextFormulas.hpp"
 
 #ifdef VLIP_HAS_HEIF
 #include <libheif/heif_cxx.h>
@@ -7,7 +8,6 @@
 #include <QPainter>
 #include <QFileInfo>
 #include <QImageReader>
-#include <QFontMetricsF>
 #include <cstring>
 
 namespace vlip {
@@ -51,13 +51,25 @@ QImage loadImage(const QString& path) {
 
 } // namespace
 
-TextClipPreviewWidget::TextClipPreviewWidget(QWidget* parent) : QWidget(parent) {
+TextClipPreviewWidget::TextClipPreviewWidget(TextOverlayRenderer* overlayRenderer,
+                                             QWidget* parent)
+    : QWidget(parent), m_overlayRenderer(overlayRenderer) {
     setMinimumSize(200, 150);
     setAttribute(Qt::WA_OpaquePaintEvent);
     setAutoFillBackground(true);
     QPalette p = palette();
     p.setColor(QPalette::Window, QColor(20, 20, 20));
     setPalette(p);
+
+    if (m_overlayRenderer) {
+        connect(m_overlayRenderer, &TextOverlayRenderer::overlayReady, this,
+                [this](const TextOverlayRenderer::Key& k) {
+            if (k == m_overlayKey && m_overlayRenderer) {
+                m_overlay = m_overlayRenderer->getOrRequest(m_overlayKey);
+                update();
+            }
+        });
+    }
 }
 
 void TextClipPreviewWidget::setData(const QString& text,
@@ -73,6 +85,7 @@ void TextClipPreviewWidget::setData(const QString& text,
         m_loadedBgPath = backgroundPath;
         m_background = backgroundPath.isEmpty() ? QImage() : loadImage(backgroundPath);
     }
+    requestOverlay();
     update();
 }
 
@@ -80,7 +93,20 @@ void TextClipPreviewWidget::clear() {
     m_text.clear();
     m_loadedBgPath.clear();
     m_background = QImage();
+    m_overlayKey = {};
+    m_overlay = QImage();
     update();
+}
+
+void TextClipPreviewWidget::requestOverlay() {
+    m_overlay = QImage();
+    m_overlayKey = {};
+    if (!m_overlayRenderer || m_text.trimmed().isEmpty()) return;
+
+    QString expr = textClipDrawText(m_text, m_canvasH, m_style);
+    if (expr.isEmpty()) return;
+    m_overlayKey = TextOverlayRenderer::Key{expr, m_canvasW, m_canvasH};
+    m_overlay = m_overlayRenderer->getOrRequest(m_overlayKey);
 }
 
 void TextClipPreviewWidget::paintEvent(QPaintEvent*) {
@@ -104,34 +130,12 @@ void TextClipPreviewWidget::paintEvent(QPaintEvent*) {
         p.drawImage(bgRect, m_background);
     }
 
-    if (m_text.isEmpty()) return;
-
-    // Pick a font size: explicit pixel size scaled to the on-screen canvas
-    // size, or the renderer's auto-rule (canvasH / 12) likewise scaled.
-    double scale = double(canvasRect.height()) / m_canvasH;
-    int fontPx = (m_style.fontSizePx > 0)
-        ? int(std::round(m_style.fontSizePx * scale))
-        : std::max(12, int(std::round((m_canvasH / 12.0) * scale)));
-
-    QFont f;
-    if (!m_style.fontFamily.isEmpty()) f.setFamily(m_style.fontFamily);
-    f.setPixelSize(std::max(6, fontPx));
-    p.setFont(f);
-    p.setPen(m_style.fontColor);
-
-    QFontMetricsF fm(f);
-    QRectF textRect = fm.boundingRect(QRectF(canvasRect),
-                                      Qt::AlignHCenter | Qt::TextWordWrap, m_text);
-    double y;
-    switch (m_style.verticalAlign) {
-        case VerticalAlign::Top:    y = canvasRect.top() + canvasRect.height() / 12.0; break;
-        case VerticalAlign::Bottom: y = canvasRect.bottom() - canvasRect.height() / 12.0
-                                        - textRect.height(); break;
-        case VerticalAlign::Middle:
-        default:                    y = canvasRect.center().y() - textRect.height() / 2.0; break;
+    // Overlay: scale the canvas-sized PNG down to the on-screen canvas
+    // rect so positions and font sizes match exactly.
+    if (!m_overlay.isNull()) {
+        p.setRenderHint(QPainter::SmoothPixmapTransform, true);
+        p.drawImage(canvasRect, m_overlay);
     }
-    QRectF drawRect(canvasRect.left(), y, canvasRect.width(), textRect.height());
-    p.drawText(drawRect, Qt::AlignHCenter | Qt::TextWordWrap, m_text);
 }
 
 } // namespace vlip

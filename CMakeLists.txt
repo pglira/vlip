@@ -36,6 +36,8 @@ set(SRCS
     src/VideoClipPreviewWidget.cpp
     src/TextClipPreviewWidget.cpp
     src/Renderer.cpp
+    src/DrawtextFormulas.cpp
+    src/TextOverlayRenderer.cpp
     assets/vlip.qrc
 )
 
@@ -72,7 +74,8 @@ if(BUILD_TESTS)
         src/Importer.cpp
         src/MetaProbe.cpp
         src/ThumbnailCache.cpp
-            src/Renderer.cpp
+        src/Renderer.cpp
+        src/DrawtextFormulas.cpp
     )
     target_include_directories(vlip_smoke PRIVATE src)
     target_link_libraries(vlip_smoke PRIVATE Qt6::Core Qt6::Gui Qt6::Concurrent)

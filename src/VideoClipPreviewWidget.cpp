@@ -1,5 +1,6 @@
 #include "VideoClipPreviewWidget.hpp"
 #include "MainWindow.hpp"
+#include "DrawtextFormulas.hpp"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -151,6 +152,34 @@ void TrimSlider::paintEvent(QPaintEvent* e) {
     if (m_endMs   >= 0) drawMarker(xForMs(m_endMs),   QColor(220, 80, 80));
 }
 
+SubtitleOverlayWidget::SubtitleOverlayWidget(QWidget* parent) : QWidget(parent) {
+    setAttribute(Qt::WA_TranslucentBackground);
+    setAttribute(Qt::WA_TransparentForMouseEvents);
+}
+
+void SubtitleOverlayWidget::setOverlay(const QImage& img) {
+    m_overlay = img;
+    update();
+}
+
+void SubtitleOverlayWidget::setCanvasSize(int w, int h) {
+    if (w > 0) m_canvasW = w;
+    if (h > 0) m_canvasH = h;
+}
+
+void SubtitleOverlayWidget::paintEvent(QPaintEvent*) {
+    if (m_overlay.isNull()) return;
+    // Fit the project canvas inside the widget; the subtitle overlay is
+    // drawn at its canvas position, scaled to that letterboxed area.
+    QSize fit = QSize(m_canvasW, m_canvasH).scaled(size(), Qt::KeepAspectRatio);
+    QRect dst((width() - fit.width()) / 2,
+              (height() - fit.height()) / 2,
+              fit.width(), fit.height());
+    QPainter p(this);
+    p.setRenderHint(QPainter::SmoothPixmapTransform, true);
+    p.drawImage(dst, m_overlay);
+}
+
 namespace {
 QString fmtTime(double s) {
     if (s < 0) s = 0;
@@ -171,8 +200,10 @@ QString fmtTime(double s) {
 }
 }
 
-VideoClipPreviewWidget::VideoClipPreviewWidget(MainWindow* mw, QWidget* parent)
-    : QWidget(parent), m_mw(mw) {
+VideoClipPreviewWidget::VideoClipPreviewWidget(MainWindow* mw,
+                                               TextOverlayRenderer* overlayRenderer,
+                                               QWidget* parent)
+    : QWidget(parent), m_mw(mw), m_overlayRenderer(overlayRenderer) {
     m_player = new QMediaPlayer(this);
     m_audio = new QAudioOutput(this);
     m_player->setAudioOutput(m_audio);
@@ -187,9 +218,24 @@ VideoClipPreviewWidget::VideoClipPreviewWidget(MainWindow* mw, QWidget* parent)
     }
     m_player->setVideoOutput(m_videoWidget);
 
+    // Sibling overlay parented to `this` (not the QVideoWidget), raised
+    // above the video. Compositing-platform caveats apply on Wayland.
+    m_subOverlay = new SubtitleOverlayWidget(this);
+    m_subOverlay->hide();
+
     auto* v = new QVBoxLayout(this);
     v->setContentsMargins(4, 4, 4, 4);
     v->addWidget(m_videoWidget, 1);
+
+    if (m_overlayRenderer) {
+        connect(m_overlayRenderer, &TextOverlayRenderer::overlayReady, this,
+                [this](const TextOverlayRenderer::Key& k) {
+            if (k == m_subtitleKey && m_overlayRenderer) {
+                m_subOverlay->setOverlay(m_overlayRenderer->getOrRequest(m_subtitleKey));
+                m_subOverlay->setVisible(!m_subtitleText.trimmed().isEmpty());
+            }
+        });
+    }
 
     m_scrub = new TrimSlider(this);
     m_scrub->setRange(0, 10000);
@@ -355,6 +401,62 @@ void VideoClipPreviewWidget::clear() {
     m_trim->setText(tr("(no video clip selected)"));
     m_durationMs = 0;
     setPlayButtonText();
+    m_subtitleText.clear();
+    m_subtitleKey = {};
+    m_subOverlay->setOverlay(QImage());
+    m_subOverlay->hide();
+}
+
+void VideoClipPreviewWidget::setSubtitle(const QString& text, const SubtitleStyle& style) {
+    m_subtitleText = text;
+    m_subtitleStyle = style;
+    requestSubtitleOverlay();
+}
+
+void VideoClipPreviewWidget::setProjectCanvas(int w, int h) {
+    if (w <= 0 || h <= 0) return;
+    if (w == m_projectW && h == m_projectH) return;
+    m_projectW = w;
+    m_projectH = h;
+    m_subOverlay->setCanvasSize(w, h);
+    requestSubtitleOverlay();
+    m_subOverlay->update();
+}
+
+void VideoClipPreviewWidget::requestSubtitleOverlay() {
+    m_subOverlay->setOverlay(QImage());
+    m_subtitleKey = {};
+    if (!m_overlayRenderer || m_subtitleText.trimmed().isEmpty()) {
+        m_subOverlay->hide();
+        return;
+    }
+    m_subOverlay->setCanvasSize(m_projectW, m_projectH);
+    QString expr = subtitleDrawText(m_subtitleText, m_projectH, m_subtitleStyle, 0.0, false);
+    if (expr.isEmpty()) {
+        m_subOverlay->hide();
+        return;
+    }
+    m_subtitleKey = TextOverlayRenderer::Key{expr, m_projectW, m_projectH};
+    QImage img = m_overlayRenderer->getOrRequest(m_subtitleKey);
+    if (!img.isNull()) {
+        m_subOverlay->setOverlay(img);
+    }
+    positionSubtitleOverlay();
+    m_subOverlay->show();
+    m_subOverlay->raise();
+}
+
+void VideoClipPreviewWidget::positionSubtitleOverlay() {
+    // Position the overlay over the QVideoWidget's geometry. Done after
+    // every layout pass so it tracks resizes.
+    if (!m_videoWidget || !m_subOverlay) return;
+    m_subOverlay->setGeometry(m_videoWidget->geometry());
+    if (m_subOverlay->isVisible()) m_subOverlay->raise();
+}
+
+void VideoClipPreviewWidget::resizeEvent(QResizeEvent* e) {
+    QWidget::resizeEvent(e);
+    positionSubtitleOverlay();
 }
 
 void VideoClipPreviewWidget::onPositionChanged(qint64 ms) {

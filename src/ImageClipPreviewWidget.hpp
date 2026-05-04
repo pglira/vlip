@@ -1,9 +1,13 @@
 #pragma once
 
+#include "Project.hpp"
+#include "TextOverlayRenderer.hpp"
+
 #include <QWidget>
 #include <QImage>
 #include <QString>
 #include <QRectF>
+#include <QPointer>
 #include <optional>
 
 class QFrame;
@@ -17,13 +21,17 @@ class CropOverlay;
 class ImageClipPreviewWidget : public QWidget {
     Q_OBJECT
 public:
-    explicit ImageClipPreviewWidget(QWidget* parent = nullptr);
+    explicit ImageClipPreviewWidget(TextOverlayRenderer* overlayRenderer,
+                                    QWidget* parent = nullptr);
     void setImage(const QString& path);
     // Persisted crop applied to the displayed image (normalized 0..1).
     void setCrop(const std::optional<QRectF>& crop);
     // Project canvas dimensions — used to label and apply the "Project"
     // aspect-ratio preset in crop mode. Safe to call any time.
     void setProjectCanvas(int width, int height);
+    // Subtitle text + style for the WYSIWYG overlay. Pass empty text
+    // (or any text whose trim is empty) to hide the overlay.
+    void setSubtitle(const QString& text, const SubtitleStyle& style);
     void clear();
 
     // Enter the interactive crop UI. Initial selection = current crop or
@@ -42,10 +50,13 @@ protected:
 
 private:
     QRect imagePaintRect() const;
+    QRect canvasFitRect() const;
     void buildCropUi();
     void positionCropUi();
     void exitCropMode();
+    void requestSubtitleOverlay();
 
+    QPointer<TextOverlayRenderer> m_overlayRenderer;
     QString m_path;
     QImage m_orig;
     std::optional<QRectF> m_crop;
@@ -61,6 +72,12 @@ private:
     QPushButton* m_btnApply = nullptr;
     QPushButton* m_btnReset = nullptr;
     QPushButton* m_btnCancel = nullptr;
+
+    // Subtitle overlay
+    QString m_subtitleText;
+    SubtitleStyle m_subtitleStyle;
+    TextOverlayRenderer::Key m_subtitleKey;
+    QImage m_subtitleOverlay;
 };
 
 } // namespace vlip

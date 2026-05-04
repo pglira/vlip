@@ -59,6 +59,11 @@ int main(int argc, char** argv) {
     p.defaults.textClip.fontSizePx = 80;
     p.defaults.textClip.verticalAlign = vlip::VerticalAlign::Top;
     p.defaults.textClip.defaultDuration = 6.0;
+    // Distinct colours per channel (including a non-trivial alpha) so we
+    // catch any RGB ↔ alpha shuffling in the colour serializer.
+    p.defaults.textClip.fontColor = QColor(11, 22, 33, 200);
+    p.defaults.subtitle.fontColor = QColor(44, 55, 66, 255);
+    p.defaults.subtitle.bgColor   = QColor(77, 88, 99, 140);
 
     // Background-music playlist (paths don't have to exist for the
     // round-trip — a missing-file warning is expected on load and is OK).
@@ -91,6 +96,12 @@ int main(int argc, char** argv) {
     CHECK(qFuzzyCompare(reload.defaults.textClip.defaultDuration,
                         p.defaults.textClip.defaultDuration),
           "text-clip default duration mismatch");
+    CHECK(reload.defaults.textClip.fontColor == p.defaults.textClip.fontColor,
+          "text-clip fontColor mismatch");
+    CHECK(reload.defaults.subtitle.fontColor == p.defaults.subtitle.fontColor,
+          "subtitle fontColor mismatch");
+    CHECK(reload.defaults.subtitle.bgColor == p.defaults.subtitle.bgColor,
+          "subtitle bgColor mismatch");
     CHECK(reload.items.size() == p.items.size(), "items count mismatch");
     CHECK(reload.backgroundMusic == p.backgroundMusic, "backgroundMusic mismatch");
 

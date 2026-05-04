@@ -1,5 +1,6 @@
 #include "ImageClipPreviewWidget.hpp"
 #include "CropOverlay.hpp"
+#include "DrawtextFormulas.hpp"
 
 #ifdef VLIP_HAS_HEIF
 #include <libheif/heif_cxx.h>
@@ -58,7 +59,9 @@ QImage loadImage(const QString& path) {
 
 } // namespace
 
-ImageClipPreviewWidget::ImageClipPreviewWidget(QWidget* parent) : QWidget(parent) {
+ImageClipPreviewWidget::ImageClipPreviewWidget(TextOverlayRenderer* overlayRenderer,
+                                               QWidget* parent)
+    : QWidget(parent), m_overlayRenderer(overlayRenderer) {
     setMinimumSize(200, 150);
     setAttribute(Qt::WA_OpaquePaintEvent);
     setAutoFillBackground(true);
@@ -75,6 +78,16 @@ ImageClipPreviewWidget::ImageClipPreviewWidget(QWidget* parent) : QWidget(parent
         if (!isVisible() || m_orig.isNull() || m_cropping) return;
         enterCropMode();
     });
+
+    if (m_overlayRenderer) {
+        connect(m_overlayRenderer, &TextOverlayRenderer::overlayReady, this,
+                [this](const TextOverlayRenderer::Key& k) {
+            if (k == m_subtitleKey && m_overlayRenderer) {
+                m_subtitleOverlay = m_overlayRenderer->getOrRequest(m_subtitleKey);
+                update();
+            }
+        });
+    }
 }
 
 void ImageClipPreviewWidget::setImage(const QString& path) {
@@ -101,32 +114,76 @@ void ImageClipPreviewWidget::setProjectCanvas(int w, int h) {
     if (m_overlay && m_cropping) {
         m_overlay->setLockedAspect(double(w) / double(h));
     }
+    requestSubtitleOverlay();
+    update();
 }
 
 void ImageClipPreviewWidget::clear() {
     m_path.clear();
     m_orig = QImage();
     m_crop.reset();
+    m_subtitleText.clear();
+    m_subtitleKey = {};
+    m_subtitleOverlay = QImage();
     if (m_cropping) exitCropMode();
     update();
 }
 
+void ImageClipPreviewWidget::setSubtitle(const QString& text, const SubtitleStyle& style) {
+    m_subtitleText = text;
+    m_subtitleStyle = style;
+    requestSubtitleOverlay();
+    update();
+}
+
+void ImageClipPreviewWidget::requestSubtitleOverlay() {
+    m_subtitleOverlay = QImage();
+    m_subtitleKey = {};
+    if (!m_overlayRenderer || m_subtitleText.trimmed().isEmpty()) return;
+    QString expr = subtitleDrawText(m_subtitleText, m_projectH, m_subtitleStyle, 0.0, false);
+    if (expr.isEmpty()) return;
+    m_subtitleKey = TextOverlayRenderer::Key{expr, m_projectW, m_projectH};
+    m_subtitleOverlay = m_overlayRenderer->getOrRequest(m_subtitleKey);
+}
+
+QRect ImageClipPreviewWidget::canvasFitRect() const {
+    // Crop mode wants the maximum interactive area; outside crop mode
+    // we letterbox the project canvas inside the widget so the subtitle
+    // overlay can be positioned in canvas coordinates (matching the
+    // renderer's pad+drawtext compositing).
+    QSize boxSize = m_cropping
+        ? size()
+        : QSize(m_projectW, m_projectH).scaled(size(), Qt::KeepAspectRatio);
+    return QRect((width() - boxSize.width()) / 2,
+                 (height() - boxSize.height()) / 2,
+                 boxSize.width(), boxSize.height());
+}
+
 QRect ImageClipPreviewWidget::imagePaintRect() const {
     if (m_orig.isNull()) return QRect();
-    // Crop mode shows the *full* image so the user can pick anywhere;
-    // outside crop mode the persisted crop drives what's visible.
+    // Outside crop mode the persisted crop drives what's visible; in
+    // crop mode the *full* image is shown so the user can pick anywhere.
     QSize src = (m_crop && !m_cropping)
         ? QSize(std::max(1, int(std::round(m_crop->width()  * m_orig.width()))),
                 std::max(1, int(std::round(m_crop->height() * m_orig.height()))))
         : m_orig.size();
-    QSize target = src.scaled(size(), Qt::KeepAspectRatio);
-    QPoint topLeft((width() - target.width()) / 2, (height() - target.height()) / 2);
-    return QRect(topLeft, target);
+    QRect host = canvasFitRect();
+    QSize target = src.scaled(host.size(), Qt::KeepAspectRatio);
+    return QRect(host.x() + (host.width()  - target.width())  / 2,
+                 host.y() + (host.height() - target.height()) / 2,
+                 target.width(), target.height());
 }
 
 void ImageClipPreviewWidget::paintEvent(QPaintEvent*) {
     QPainter p(this);
     p.fillRect(rect(), palette().window());
+
+    // Canvas rect (only visible when not cropping). Filled black so the
+    // preview looks like the rendered MP4: image centered with black
+    // letterbox bars where image-aspect != canvas-aspect.
+    QRect canvasRect = canvasFitRect();
+    if (!m_cropping) p.fillRect(canvasRect, Qt::black);
+
     if (m_orig.isNull()) {
         p.setPen(Qt::lightGray);
         p.drawText(rect(), Qt::AlignCenter,
@@ -143,6 +200,13 @@ void ImageClipPreviewWidget::paintEvent(QPaintEvent*) {
         p.drawImage(dst, m_orig, srcRect);
     } else {
         p.drawImage(dst, m_orig);
+    }
+
+    // Subtitle overlay in canvas coordinates — only outside crop mode
+    // (cropping shouldn't be obstructed by burn-in text).
+    if (!m_cropping && !m_subtitleOverlay.isNull()) {
+        p.setRenderHint(QPainter::SmoothPixmapTransform, true);
+        p.drawImage(canvasRect, m_subtitleOverlay);
     }
 }
 

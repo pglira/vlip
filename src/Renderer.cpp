@@ -1,4 +1,5 @@
 #include "Renderer.hpp"
+#include "DrawtextFormulas.hpp"
 
 #include <QFileInfo>
 #include <QDir>
@@ -11,153 +12,6 @@
 #include <QTimeZone>
 
 namespace vlip {
-
-namespace {
-
-QString escapeDrawText(const QString& text) {
-    QString s = text;
-    s.replace("\\", "\\\\");
-    s.replace(":", "\\:");
-    s.replace("'", "\\'");
-    s.replace("%", "\\%");
-    return s;
-}
-
-QString fallbackFontFile() {
-    static const QStringList candidates = {
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        "/usr/share/fonts/TTF/DejaVuSans.ttf",
-        "/usr/share/fonts/dejavu/DejaVuSans.ttf",
-        "/Library/Fonts/Helvetica.ttc",
-        "C:/Windows/Fonts/arial.ttf",
-    };
-    for (const auto& p : candidates) {
-        if (QFileInfo::exists(p)) return p;
-    }
-    return {};
-}
-
-QString resolveFontFile(const QString& family) {
-    if (!family.isEmpty()) {
-        // Use fontconfig if available — works for any installed family.
-        QProcess pr;
-        pr.start("fc-match", {"-f", "%{file}", family});
-        if (pr.waitForStarted(500) && pr.waitForFinished(1500)) {
-            QString p = QString::fromUtf8(pr.readAllStandardOutput()).trimmed();
-            if (!p.isEmpty() && QFileInfo::exists(p)) return p;
-        }
-    }
-    return fallbackFontFile();
-}
-
-QString colorToDrawtext(const QColor& c) {
-    return QString("0x%1%2%3@%4")
-        .arg(c.red(),   2, 16, QChar('0'))
-        .arg(c.green(), 2, 16, QChar('0'))
-        .arg(c.blue(),  2, 16, QChar('0'))
-        .arg(c.alphaF(), 0, 'f', 3);
-}
-
-// Format a stored UTC timestamp using the project's time-zone (or system
-// local if the tz id is empty / invalid). Returns empty for an invalid
-// QDateTime so the caller can skip drawing.
-QString formatDatestamp(const QDateTime& utc, const QByteArray& tzId) {
-    if (!utc.isValid()) return {};
-    QDateTime t = utc;
-    t.setTimeSpec(Qt::UTC);
-    if (tzId.isEmpty()) {
-        t = t.toLocalTime();
-    } else {
-        QTimeZone z(tzId);
-        if (z.isValid()) t = t.toTimeZone(z);
-        else             t = t.toLocalTime();
-    }
-    return t.toString("dd.MM.yyyy HH:mm");
-}
-
-// drawtext filter expression for the corner date stamp. `text` is the
-// pre-formatted DD.MM.YYYY HH:MM string. Returns empty if the style is
-// disabled or text is empty. Operates on canvas coords (post scale+pad)
-// so it lives in a fixed corner of the final video.
-QString datestampDrawText(const QString& text, int canvasH,
-                          const DatestampStyle& s) {
-    if (!s.active || text.isEmpty()) return {};
-    QString font = resolveFontFile(s.fontFamily);
-    int fontSize = s.fontSizePx > 0 ? s.fontSizePx : qMax(14, canvasH / 36);
-    QString chain = "drawtext=";
-    if (!font.isEmpty()) {
-        chain += QString("fontfile='%1':").arg(font);
-    }
-    chain += QString("text='%1'").arg(escapeDrawText(text));
-    chain += ":fontcolor=white";
-    chain += QString(":fontsize=%1").arg(fontSize);
-    int m = std::max(0, s.marginPx);
-    switch (s.corner) {
-        case Corner::TopLeft:
-            chain += QString(":x=%1:y=%1").arg(m); break;
-        case Corner::TopRight:
-            chain += QString(":x=w-text_w-%1:y=%1").arg(m); break;
-        case Corner::BottomLeft:
-            chain += QString(":x=%1:y=h-text_h-%1").arg(m); break;
-        case Corner::BottomRight:
-            chain += QString(":x=w-text_w-%1:y=h-text_h-%1").arg(m); break;
-    }
-    return chain;
-}
-
-QString textClipDrawText(const QString& text, int canvasH,
-                         const TextClipStyle& style) {
-    if (text.trimmed().isEmpty()) return {};
-    QString font = resolveFontFile(style.fontFamily);
-    int fontSize = style.fontSizePx > 0 ? style.fontSizePx
-                                        : qMax(20, canvasH / 12);
-    QString chain = "drawtext=";
-    if (!font.isEmpty()) {
-        chain += QString("fontfile='%1':").arg(font);
-    }
-    chain += QString("text='%1'").arg(escapeDrawText(text));
-    chain += QString(":fontcolor=%1").arg(colorToDrawtext(style.fontColor));
-    chain += QString(":fontsize=%1").arg(fontSize);
-    chain += ":x=(w-text_w)/2";
-    switch (style.verticalAlign) {
-        case VerticalAlign::Top:    chain += ":y=h/12"; break;
-        case VerticalAlign::Middle: chain += ":y=(h-text_h)/2"; break;
-        case VerticalAlign::Bottom: chain += ":y=h-(text_h)-h/12"; break;
-    }
-    return chain;
-}
-
-QString drawTextChain(const QString& subtitle, int canvasH,
-                      const SubtitleStyle& style, double segmentDur) {
-    if (subtitle.trimmed().isEmpty()) return {};
-    QString font = resolveFontFile(style.fontFamily);
-    int fontSize = style.fontSizePx > 0 ? style.fontSizePx
-                                        : qMax(20, canvasH / 22);
-    QString chain = "drawtext=";
-    if (!font.isEmpty()) {
-        chain += QString("fontfile='%1':").arg(font);
-    }
-    chain += QString("text='%1'").arg(escapeDrawText(subtitle));
-    chain += QString(":fontcolor=%1").arg(colorToDrawtext(style.fontColor));
-    chain += QString(":fontsize=%1").arg(fontSize);
-    chain += QString(":box=1:boxcolor=%1:boxborderw=12").arg(colorToDrawtext(style.bgColor));
-    chain += ":x=(w-text_w)/2";
-    switch (style.position) {
-        case SubtitlePosition::Top:    chain += ":y=h/12"; break;
-        case SubtitlePosition::Middle: chain += ":y=(h-text_h)/2"; break;
-        case SubtitlePosition::Bottom: chain += ":y=h-(text_h)-h/12"; break;
-    }
-    // Visibility window. Each segment's filtergraph time starts at 0, so a
-    // simple lt(t,N) limits the burn to the first N seconds. Skip when 0
-    // (always-on) or when the limit covers the full segment anyway.
-    if (style.visibleSecs > 0.0 && style.visibleSecs < segmentDur) {
-        chain += QString(":enable='lt(t,%1)'").arg(style.visibleSecs, 0, 'f', 4);
-    }
-    return chain;
-}
-
-} // namespace
 
 Renderer::Renderer(QObject* parent) : QObject(parent) {}
 Renderer::~Renderer() { cancel(); cleanupTempDir(); }
@@ -427,7 +281,7 @@ QString Renderer::buildAndExecute(const Project& p, const QString& outPath, QStr
             chain += QString("scale=%1:%2:force_original_aspect_ratio=decrease").arg(W).arg(H);
             chain += QString(",pad=%1:%2:(ow-iw)/2:(oh-ih)/2:color=black").arg(W).arg(H);
             chain += QString(",setsar=1,fps=%1,format=yuv420p").arg(FPS);
-            QString dt = drawTextChain(img.common.subtitle, H, p.defaults.subtitle, dur);
+            QString dt = subtitleDrawText(img.common.subtitle, H, p.defaults.subtitle, dur, true);
             if (!dt.isEmpty()) chain += "," + dt;
             // Per-item date stamp (canvas-space corner overlay).
             QString ds = datestampDrawText(
@@ -456,7 +310,7 @@ QString Renderer::buildAndExecute(const Project& p, const QString& outPath, QStr
             chain += QString("scale=%1:%2:force_original_aspect_ratio=decrease").arg(W).arg(H);
             chain += QString(",pad=%1:%2:(ow-iw)/2:(oh-ih)/2:color=black").arg(W).arg(H);
             chain += QString(",setsar=1,fps=%1,format=yuv420p").arg(FPS);
-            QString dt = drawTextChain(vid.common.subtitle, H, p.defaults.subtitle, dur);
+            QString dt = subtitleDrawText(vid.common.subtitle, H, p.defaults.subtitle, dur, true);
             if (!dt.isEmpty()) chain += "," + dt;
             QString ds = datestampDrawText(
                 formatDatestamp(vid.common.timestamp, p.defaults.timeZone),

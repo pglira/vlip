@@ -1,9 +1,12 @@
 #pragma once
 
 #include "Project.hpp"
+#include "TextOverlayRenderer.hpp"
 
 #include <QWidget>
 #include <QUuid>
+#include <QImage>
+#include <QPointer>
 #include <QMediaPlayer>
 #include <QSlider>
 
@@ -13,6 +16,26 @@ class QAudioOutput;
 class QVideoWidget;
 
 namespace vlip {
+
+// Transparent child painted on top of a QVideoWidget to show the
+// per-clip subtitle overlay during preview. On X11 this composites
+// reliably; on Wayland with hardware video paths it may not show
+// (the rendered MP4 is unaffected — this is a preview-only concern).
+class SubtitleOverlayWidget : public QWidget {
+    Q_OBJECT
+public:
+    explicit SubtitleOverlayWidget(QWidget* parent = nullptr);
+    void setOverlay(const QImage& img);
+    void setCanvasSize(int w, int h);
+
+protected:
+    void paintEvent(QPaintEvent* e) override;
+
+private:
+    QImage m_overlay;
+    int m_canvasW = 1920;
+    int m_canvasH = 1080;
+};
 
 // Timeline slider for video preview. Owns its mouse handling, so any
 // user interaction (click *or* drag) emits a single seekRequested(ms)
@@ -57,11 +80,20 @@ class MainWindow;
 class VideoClipPreviewWidget : public QWidget {
     Q_OBJECT
 public:
-    explicit VideoClipPreviewWidget(MainWindow* mw, QWidget* parent = nullptr);
+    explicit VideoClipPreviewWidget(MainWindow* mw,
+                                    TextOverlayRenderer* overlayRenderer,
+                                    QWidget* parent = nullptr);
     ~VideoClipPreviewWidget() override;
 
     void setItem(const QUuid& id);
+    // Subtitle text + style for the WYSIWYG overlay drawn on top of
+    // the live video. Pass empty text to hide the overlay.
+    void setSubtitle(const QString& text, const SubtitleStyle& style);
+    void setProjectCanvas(int width, int height);
     void clear();
+
+protected:
+    void resizeEvent(QResizeEvent* e) override;
 
 private slots:
     void onPositionChanged(qint64 ms);
@@ -73,6 +105,8 @@ private slots:
 private:
     void rebuildLabels();
     void setPlayButtonText();
+    void requestSubtitleOverlay();
+    void positionSubtitleOverlay();
 
     // Set on setItem(); applied as setPosition() once the media reports
     // BufferedMedia so a later Play click starts from the trim-start.
@@ -80,10 +114,12 @@ private:
     qint64 m_seekOnLoadMs = -1;
 
     MainWindow* m_mw;
+    QPointer<TextOverlayRenderer> m_overlayRenderer;
     QUuid m_id;
     QMediaPlayer* m_player;
     QAudioOutput* m_audio;
     QVideoWidget* m_videoWidget;
+    SubtitleOverlayWidget* m_subOverlay;
     TrimSlider* m_scrub;
     QLabel* m_pos;
     QLabel* m_dur;
@@ -93,6 +129,12 @@ private:
     QPushButton *m_btnSetStart, *m_btnSetEnd;
     qint64 m_durationMs = 0;
     QString m_loadedPath;       // currently loaded media URL path
+
+    QString m_subtitleText;
+    SubtitleStyle m_subtitleStyle;
+    TextOverlayRenderer::Key m_subtitleKey;
+    int m_projectW = 1920;
+    int m_projectH = 1080;
 };
 
 } // namespace vlip

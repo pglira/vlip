@@ -115,11 +115,14 @@ Item itemFromJson(const QJsonObject& o) {
 }
 
 QString colorToString(const QColor& c) {
+    // QColor parses 8-digit hex strings as #AARRGGBB (alpha first), so
+    // we serialize in the same order — otherwise round-tripping a
+    // non-opaque colour scrambles the channels on load.
     return QString("#%1%2%3%4")
+        .arg(c.alpha(), 2, 16, QChar('0'))
         .arg(c.red(),   2, 16, QChar('0'))
         .arg(c.green(), 2, 16, QChar('0'))
-        .arg(c.blue(),  2, 16, QChar('0'))
-        .arg(c.alpha(), 2, 16, QChar('0'));
+        .arg(c.blue(),  2, 16, QChar('0'));
 }
 
 QColor colorFromString(const QString& s, const QColor& fallback) {
