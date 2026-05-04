@@ -21,6 +21,9 @@
 #include <QPainter>
 #include <QPixmap>
 #include <QIcon>
+#include <QListWidget>
+#include <QFileDialog>
+#include <QFileInfo>
 
 namespace vlip {
 
@@ -344,6 +347,64 @@ DefaultsPane::DefaultsPane(MainWindow* mw, QWidget* parent)
     connect(m_timeZone, &QComboBox::currentTextChanged, this,
             [pushDatestamp](const QString&) { pushDatestamp(); });
 
+    // ----- Background music tab: project-wide music playlist that plays
+    // continuously over the rendered video, ducked around video clips.
+    auto* bgmTab = addTab(tr("Background music"));
+    auto* bgmHelp = new QLabel(tr(
+        "Plays continuously over the slideshow. Music fades out before each\n"
+        "video clip, stays muted during it, and fades back in after — using\n"
+        "the same fade duration as visual transitions."), this);
+    bgmHelp->setWordWrap(true);
+    bgmTab->addWidget(bgmHelp);
+
+    m_musicList = new QListWidget(this);
+    m_musicList->setSelectionMode(QAbstractItemView::SingleSelection);
+    bgmTab->addWidget(m_musicList, 1);
+
+    auto* bgmBtns = new QHBoxLayout;
+    m_musicAdd    = new QPushButton(tr("Add…"),  this);
+    m_musicRemove = new QPushButton(tr("Remove"), this);
+    m_musicUp     = new QPushButton(tr("Up"),     this);
+    m_musicDown   = new QPushButton(tr("Down"),   this);
+    bgmBtns->addWidget(m_musicAdd);
+    bgmBtns->addWidget(m_musicRemove);
+    bgmBtns->addWidget(m_musicUp);
+    bgmBtns->addWidget(m_musicDown);
+    bgmBtns->addStretch(1);
+    bgmTab->addLayout(bgmBtns);
+
+    auto updateMusicButtons = [this]() {
+        const int row = m_musicList->currentRow();
+        const int n = m_musicList->count();
+        m_musicRemove->setEnabled(row >= 0);
+        m_musicUp->setEnabled(row > 0);
+        m_musicDown->setEnabled(row >= 0 && row < n - 1);
+    };
+    connect(m_musicList, &QListWidget::currentRowChanged, this,
+            [updateMusicButtons](int) { updateMusicButtons(); });
+
+    connect(m_musicAdd, &QPushButton::clicked, this, [this]() {
+        const QStringList paths = QFileDialog::getOpenFileNames(
+            this, tr("Add background-music tracks"),
+            QString(),
+            tr("Audio (*.mp3 *.m4a *.aac *.ogg *.opus *.flac *.wav);;All files (*.*)"));
+        for (const auto& p : paths) m_mw->addMusicTrack(p);
+    });
+    connect(m_musicRemove, &QPushButton::clicked, this, [this]() {
+        const int row = m_musicList->currentRow();
+        if (row >= 0) m_mw->removeMusicTrack(row);
+    });
+    connect(m_musicUp, &QPushButton::clicked, this, [this]() {
+        const int row = m_musicList->currentRow();
+        if (row > 0) m_mw->moveMusicTrack(row, row - 1);
+    });
+    connect(m_musicDown, &QPushButton::clicked, this, [this]() {
+        const int row = m_musicList->currentRow();
+        if (row >= 0 && row < m_musicList->count() - 1) {
+            m_mw->moveMusicTrack(row, row + 1);
+        }
+    });
+
     refresh();
 }
 
@@ -399,6 +460,31 @@ void DefaultsPane::refresh() {
         int tzIdx = m_timeZone->findData(tz);
         if (tzIdx >= 0) m_timeZone->setCurrentIndex(tzIdx);
         else m_timeZone->setEditText(tz);
+    }
+
+    // Background-music playlist. Preserve the selection across refresh
+    // when possible so reorder buttons feel responsive.
+    {
+        const int prevRow = m_musicList->currentRow();
+        QSignalBlocker block(m_musicList);
+        m_musicList->clear();
+        for (const QString& path : p.backgroundMusic) {
+            QString display = QFileInfo(path).fileName();
+            if (!QFileInfo::exists(path)) display += tr("  [missing]");
+            auto* it = new QListWidgetItem(display);
+            it->setToolTip(path);
+            m_musicList->addItem(it);
+        }
+        if (prevRow >= 0 && prevRow < m_musicList->count()) {
+            m_musicList->setCurrentRow(prevRow);
+        }
+    }
+    {
+        const int row = m_musicList->currentRow();
+        const int n = m_musicList->count();
+        m_musicRemove->setEnabled(row >= 0);
+        m_musicUp->setEnabled(row > 0);
+        m_musicDown->setEnabled(row >= 0 && row < n - 1);
     }
 
     m_suspend = false;

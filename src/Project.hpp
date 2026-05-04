@@ -139,6 +139,10 @@ struct Project {
     Canvas canvas;
     Defaults defaults;
     QVector<Item> items;
+    // Project-wide background-music playlist. Played continuously over
+    // the rendered video, ducked out around video clips so the video's
+    // own audio stays intelligible.
+    QStringList backgroundMusic;
 
     void sortChronologically();
     int indexOfId(const QUuid& id) const;

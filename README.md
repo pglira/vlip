@@ -34,6 +34,9 @@ between clips, and per-clip adjustments.
   image and video clip, in a configurable time zone.
 - Bulk actions to apply a duration to every image clip or every text
   clip at once.
+- Background-music playlist that plays continuously over the
+  slideshow and ducks out around video clips so each clip's own audio
+  remains intelligible.
 - Canvas presets for Full HD and 4K at 30 or 60 fps; custom values too.
 - Dockable, resizable panes; layouts and column widths are remembered
   across sessions.

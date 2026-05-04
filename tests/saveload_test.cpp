@@ -60,6 +60,13 @@ int main(int argc, char** argv) {
     p.defaults.textClip.verticalAlign = vlip::VerticalAlign::Top;
     p.defaults.textClip.defaultDuration = 6.0;
 
+    // Background-music playlist (paths don't have to exist for the
+    // round-trip — a missing-file warning is expected on load and is OK).
+    p.backgroundMusic = QStringList{
+        "/tmp/vlip-test-music-a.mp3",
+        "/tmp/vlip-test-music-b.mp3",
+    };
+
     p.sortChronologically();
     CHECK(!p.items.isEmpty(), "no items imported");
 
@@ -85,6 +92,7 @@ int main(int argc, char** argv) {
                         p.defaults.textClip.defaultDuration),
           "text-clip default duration mismatch");
     CHECK(reload.items.size() == p.items.size(), "items count mismatch");
+    CHECK(reload.backgroundMusic == p.backgroundMusic, "backgroundMusic mismatch");
 
     for (int i = 0; i < p.items.size(); ++i) {
         const auto& a = p.items[i];

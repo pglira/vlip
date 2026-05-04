@@ -263,6 +263,10 @@ bool ProjectIO::save(const Project& p, const QString& path, QString* err) {
     for (const auto& it : p.items) items.append(toJson(it));
     root["items"] = items;
 
+    QJsonArray bgMusic;
+    for (const auto& path : p.backgroundMusic) bgMusic.append(path);
+    root["background_music"] = bgMusic;
+
     QSaveFile f(path);
     if (!f.open(QIODevice::WriteOnly)) {
         if (err) *err = QStringLiteral("Cannot open for writing: %1").arg(f.errorString());
@@ -342,6 +346,16 @@ bool ProjectIO::load(Project* p, const QString& path, QStringList* warnings, QSt
         p->items.append(it);
     }
     p->sortChronologically();
+
+    p->backgroundMusic.clear();
+    for (auto v : root.value("background_music").toArray()) {
+        QString musicPath = v.toString();
+        if (musicPath.isEmpty()) continue;
+        p->backgroundMusic.append(musicPath);
+        if (!QFileInfo::exists(musicPath) && warnings) {
+            warnings->append(QStringLiteral("Background-music file missing: %1").arg(musicPath));
+        }
+    }
     return true;
 }
 

@@ -215,6 +215,89 @@ bool Renderer::start(const Project& p, const QString& outPath) {
     return true;
 }
 
+QString Renderer::appendBackgroundMusicChain(
+    QStringList& args,
+    QStringList& chains,
+    int& inputIndex,
+    const QStringList& backgroundMusic,
+    double totalDuration,
+    double transition,
+    int sampleRate,
+    const QVector<QPair<double, double>>& videoWindows,
+    const QString& currentAudioLabel)
+{
+    QStringList musicFiles;
+    for (const QString& path : backgroundMusic) {
+        if (QFileInfo::exists(path)) {
+            musicFiles.append(path);
+        } else {
+            emit log(QString("Background-music file missing, skipping: %1").arg(path));
+        }
+    }
+    if (musicFiles.isEmpty() || totalDuration <= 0.001) return currentAudioLabel;
+
+    const int firstMusicIdx = inputIndex;
+    for (const QString& path : musicFiles) {
+        args << "-i" << path;
+        ++inputIndex;
+    }
+
+    // Concat the playlist into a single stream.
+    QString musicConcat;
+    for (int i = 0; i < musicFiles.size(); ++i) {
+        musicConcat += QString("[%1:a]").arg(firstMusicIdx + i);
+    }
+    musicConcat += QString("concat=n=%1:v=0:a=1[mc]").arg(musicFiles.size());
+    chains << musicConcat;
+
+    // Loop the playlist (so short music covers a long render) and trim
+    // to the exact total duration.
+    chains << QString("[mc]aloop=loop=-1:size=2147483647,atrim=0:%1,asetpts=PTS-STARTPTS,"
+                      "aresample=%2,aformat=sample_fmts=fltp:channel_layouts=stereo[ml]")
+              .arg(totalDuration, 0, 'f', 4)
+              .arg(sampleRate);
+
+    // Volume envelope: product of one factor per video clip, plus a
+    // single end-of-render fade-out factor. Each per-clip factor is 1
+    // outside the duck window, ramps 1→0 over `transition` seconds before
+    // the clip, holds 0 during the clip, ramps 0→1 over `transition`
+    // seconds after. With transition==0, a binary mute window is used.
+    QString envelope = "1";
+    for (const auto& vw : videoWindows) {
+        const double s = vw.first, e = vw.second;
+        QString factor;
+        if (transition > 0.0) {
+            factor = QString(
+                "if(lt(t,%1),1,if(lt(t,%2),(%2-t)/%5,if(lt(t,%3),0,if(lt(t,%4),(t-%3)/%5,1))))")
+                .arg(s - transition, 0, 'f', 4)
+                .arg(s,               0, 'f', 4)
+                .arg(e,               0, 'f', 4)
+                .arg(e + transition,  0, 'f', 4)
+                .arg(transition,      0, 'f', 4);
+        } else {
+            factor = QString("if(lt(t,%1),1,if(lt(t,%2),0,1))")
+                .arg(s, 0, 'f', 4)
+                .arg(e, 0, 'f', 4);
+        }
+        envelope += "*(" + factor + ")";
+    }
+    // Final fade-out so the music tails off in lockstep with the visual
+    // fade on the last clip.
+    if (transition > 0.0) {
+        envelope += QString("*(if(lt(t,%1),1,(%2-t)/%3))")
+            .arg(totalDuration - transition, 0, 'f', 4)
+            .arg(totalDuration,              0, 'f', 4)
+            .arg(transition,                 0, 'f', 4);
+    }
+    chains << QString("[ml]volume=eval=frame:volume='%1'[md]").arg(envelope);
+
+    // Mix the ducked music with the per-clip audio concat. duration=first
+    // because the per-clip audio is exactly totalDuration long.
+    chains << QString("%1[md]amix=inputs=2:duration=first:dropout_transition=0[afinal]")
+              .arg(currentAudioLabel);
+    return "[afinal]";
+}
+
 QString Renderer::buildAndExecute(const Project& p, const QString& outPath, QString* err) {
     int W = p.canvas.width, H = p.canvas.height, FPS = p.canvas.fps;
     const int sampleRate = 48000;
@@ -233,7 +316,6 @@ QString Renderer::buildAndExecute(const Project& p, const QString& outPath, QStr
         if (it.effectiveDuration() <= 0.001) continue;
         usedItems.push_back(&it);
     }
-    const int totalUsed = usedItems.size();
     const double transition = std::max(0.0, p.defaults.transitionSecs);
 
     // Per-item inputs and filter chains.
@@ -242,15 +324,28 @@ QString Renderer::buildAndExecute(const Project& p, const QString& outPath, QStr
     int nUsed = 0;
     int inputIndex = 0;
 
+    // Window (start, end) in the rendered timeline for every video clip
+    // included in the render — used below to duck the background music
+    // around each one.
+    QVector<QPair<double, double>> videoWindows;
+
     for (const Item* itp : usedItems) {
         const Item& it = *itp;
         double dur = it.effectiveDuration();
+        // Quantize to whole frames so each segment's actual rendered
+        // duration matches `dur` exactly. Without this, ffmpeg's fps=FPS
+        // filter's per-clip rounding (~ ±1/(2·FPS)s) accumulates across
+        // hundreds of clips and would let the music-duck timing drift
+        // relative to where the video clips actually appear.
+        dur = std::max(1.0 / FPS, std::round(dur * FPS) / FPS);
         m_totalDuration += dur;
 
-        // Fade lengths for this clip. No fade-in for the first clip,
-        // no fade-out for the last clip. Clamp so the two fades fit.
-        double fadeIn  = (transition > 0.0 && nUsed > 0)             ? transition : 0.0;
-        double fadeOut = (transition > 0.0 && nUsed < totalUsed - 1) ? transition : 0.0;
+        // Fade lengths for this clip. No fade-in for the first clip
+        // (renders open on the first frame, not a black fade), but the
+        // last clip does fade out so the video ends gently. Clamp so
+        // the two fades fit inside the clip.
+        double fadeIn  = (transition > 0.0 && nUsed > 0) ? transition : 0.0;
+        double fadeOut = (transition > 0.0)              ? transition : 0.0;
         double maxEachFade = dur / 2.0;
         if (fadeIn  > maxEachFade) fadeIn  = maxEachFade;
         if (fadeOut > maxEachFade) fadeOut = maxEachFade;
@@ -349,6 +444,7 @@ QString Renderer::buildAndExecute(const Project& p, const QString& outPath, QStr
             achain += QString("[%1]").arg(alabel);
             chains << achain;
         } else {
+            videoWindows.append({m_totalDuration - dur, m_totalDuration});
             const auto& vid = it.videoClip;
             // -ss before -i for fast seek; -t for duration after -ss.
             args << "-ss" << QString::number(vid.startSecs, 'f', 4)
@@ -371,8 +467,13 @@ QString Renderer::buildAndExecute(const Project& p, const QString& outPath, QStr
             chains << chain;
 
             if (vid.hasAudio) {
-                QString achain = QString("[%1:a]aresample=async=1:first_pts=0,aformat=sample_fmts=fltp:channel_layouts=stereo,asetpts=PTS-STARTPTS,aresample=%2")
-                    .arg(vIdx).arg(sampleRate);
+                // apad+atrim forces the segment to exactly `dur` seconds
+                // at the output sample rate. Without it, source-audio
+                // sample-alignment quirks leave each video clip's audio a
+                // few ms short, accumulating into A/V drift over many
+                // clips and causing the music ducks to misalign.
+                QString achain = QString("[%1:a]aresample=async=1:first_pts=0,aformat=sample_fmts=fltp:channel_layouts=stereo,asetpts=PTS-STARTPTS,aresample=%2,apad,atrim=0:%3,asetpts=PTS-STARTPTS")
+                    .arg(vIdx).arg(sampleRate).arg(dur, 0, 'f', 6);
                 achain += aFade;
                 achain += QString("[%1]").arg(alabel);
                 chains << achain;
@@ -396,10 +497,17 @@ QString Renderer::buildAndExecute(const Project& p, const QString& outPath, QStr
         QString("concat=n=%1:v=1:a=1[vout][aout]").arg(nUsed);
     chains << concat;
 
+    // Optional background-music track — appended only if the project has
+    // any music files. Returns the audio label the encoder should map.
+    const QString audioMapLabel = appendBackgroundMusicChain(
+        args, chains, inputIndex,
+        p.backgroundMusic, m_totalDuration, transition, sampleRate,
+        videoWindows, "[aout]");
+
     QString filterComplex = chains.join(";");
 
     args << "-filter_complex" << filterComplex;
-    args << "-map" << "[vout]" << "-map" << "[aout]";
+    args << "-map" << "[vout]" << "-map" << audioMapLabel;
     args << "-c:v" << "libx264" << "-preset" << "veryfast" << "-crf" << "20"
          << "-pix_fmt" << "yuv420p"
          << "-r" << QString::number(FPS);

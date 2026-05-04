@@ -3,7 +3,10 @@
 #include "Project.hpp"
 #include <QObject>
 #include <QString>
+#include <QStringList>
+#include <QVector>
 #include <QProcess>
+#include <utility>
 
 namespace vlip {
 
@@ -42,6 +45,21 @@ private:
     qint64 m_lastProgressLogMs = 0;
 
     QString buildAndExecute(const Project& p, const QString& outPath, QString* err);
+    // If `backgroundMusic` is non-empty and the rendered video has any
+    // duration, append the music inputs (to `args`) and the music filter
+    // chains (to `chains`), advancing `inputIndex` accordingly. Returns
+    // the audio map label the encoder should use — either the unchanged
+    // `currentAudioLabel` (no music) or the new mixed label.
+    QString appendBackgroundMusicChain(
+        QStringList& args,
+        QStringList& chains,
+        int& inputIndex,
+        const QStringList& backgroundMusic,
+        double totalDuration,
+        double transition,
+        int sampleRate,
+        const QVector<QPair<double, double>>& videoWindows,
+        const QString& currentAudioLabel);
     void cleanupTempDir();
     void onProgressLine(const QString& line);
 };

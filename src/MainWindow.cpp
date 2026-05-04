@@ -610,6 +610,25 @@ void MainWindow::applyImageClipDurationToAll(double secs) {
     onProjectMutated(false);
 }
 
+void MainWindow::addMusicTrack(const QString& path) {
+    if (path.isEmpty()) return;
+    m_project.backgroundMusic.append(path);
+    onProjectMutated(false);
+}
+
+void MainWindow::removeMusicTrack(int index) {
+    if (index < 0 || index >= m_project.backgroundMusic.size()) return;
+    m_project.backgroundMusic.removeAt(index);
+    onProjectMutated(false);
+}
+
+void MainWindow::moveMusicTrack(int from, int to) {
+    const int n = m_project.backgroundMusic.size();
+    if (from < 0 || from >= n || to < 0 || to >= n || from == to) return;
+    m_project.backgroundMusic.move(from, to);
+    onProjectMutated(false);
+}
+
 void MainWindow::insertDailyDateTextClips() {
     if (m_project.items.isEmpty()) {
         emit message(tr("No items in the project."));

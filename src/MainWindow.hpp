@@ -52,6 +52,12 @@ public:
     void applyImageClipDurationToAll(double secs);
     void applyTextClipDurationToAll(double secs);
 
+    // Background-music playlist mutations. Each emits projectChanged()
+    // so the Project settings pane re-renders the list.
+    void addMusicTrack(const QString& path);
+    void removeMusicTrack(int index);
+    void moveMusicTrack(int from, int to);
+
     // For each calendar day with at least one image / video clip in the
     // project (counted in the project's date-stamp time zone), insert a
     // text clip just before the day's first item with the date as its
