@@ -1,6 +1,6 @@
-#include "TimelinePane.h"
-#include "MainWindow.h"
-#include "Project.h"
+#include "TimelinePane.hpp"
+#include "MainWindow.hpp"
+#include "Project.hpp"
 
 #include <QTreeWidget>
 #include <QTreeWidgetItem>

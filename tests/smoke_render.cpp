@@ -3,10 +3,10 @@
 //
 // Build is wired via the CMakeLists.txt option BUILD_TESTS=ON.
 
-#include "Project.h"
-#include "ProjectIO.h"
-#include "Importer.h"
-#include "Renderer.h"
+#include "Project.hpp"
+#include "ProjectIO.hpp"
+#include "Importer.hpp"
+#include "Renderer.hpp"
 
 #include <QCoreApplication>
 #include <QDir>

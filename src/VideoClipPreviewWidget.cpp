@@ -1,5 +1,5 @@
-#include "VideoClipPreviewWidget.h"
-#include "MainWindow.h"
+#include "VideoClipPreviewWidget.hpp"
+#include "MainWindow.hpp"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>

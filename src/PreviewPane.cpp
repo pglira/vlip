@@ -1,9 +1,9 @@
-#include "PreviewPane.h"
-#include "MainWindow.h"
-#include "ImageClipPreviewWidget.h"
-#include "VideoClipPreviewWidget.h"
-#include "TextClipPreviewWidget.h"
-#include "Project.h"
+#include "PreviewPane.hpp"
+#include "MainWindow.hpp"
+#include "ImageClipPreviewWidget.hpp"
+#include "VideoClipPreviewWidget.hpp"
+#include "TextClipPreviewWidget.hpp"
+#include "Project.hpp"
 
 #include <QStackedWidget>
 #include <QVBoxLayout>

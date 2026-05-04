@@ -1,6 +1,6 @@
-#include "Importer.h"
-#include "MetaProbe.h"
-#include "ThumbnailCache.h"
+#include "Importer.hpp"
+#include "MetaProbe.hpp"
+#include "ThumbnailCache.hpp"
 
 #include <QFileInfo>
 

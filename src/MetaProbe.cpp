@@ -1,4 +1,4 @@
-#include "MetaProbe.h"
+#include "MetaProbe.hpp"
 
 #include <QProcess>
 #include <QJsonDocument>

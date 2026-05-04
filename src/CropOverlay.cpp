@@ -1,4 +1,4 @@
-#include "CropOverlay.h"
+#include "CropOverlay.hpp"
 
 #include <QPainter>
 #include <QMouseEvent>

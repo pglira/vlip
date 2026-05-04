@@ -1,9 +1,9 @@
 // Save/load roundtrip test: import test data, mutate state,
 // save to JSON, reload, verify the reloaded project matches.
 
-#include "Project.h"
-#include "ProjectIO.h"
-#include "Importer.h"
+#include "Project.hpp"
+#include "ProjectIO.hpp"
+#include "Importer.hpp"
 
 #include <QCoreApplication>
 #include <QDir>

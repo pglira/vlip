@@ -1,5 +1,5 @@
-#include "ProjectIO.h"
-#include "ThumbnailCache.h"
+#include "ProjectIO.hpp"
+#include "ThumbnailCache.hpp"
 
 #include <QFile>
 #include <QFileInfo>

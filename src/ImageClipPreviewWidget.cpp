@@ -1,5 +1,5 @@
-#include "ImageClipPreviewWidget.h"
-#include "CropOverlay.h"
+#include "ImageClipPreviewWidget.hpp"
+#include "CropOverlay.hpp"
 
 #ifdef VLIP_HAS_HEIF
 #include <libheif/heif_cxx.h>

@@ -1,5 +1,5 @@
-#include "DefaultsPane.h"
-#include "MainWindow.h"
+#include "DefaultsPane.hpp"
+#include "MainWindow.hpp"
 
 #include <QFormLayout>
 #include <QGroupBox>

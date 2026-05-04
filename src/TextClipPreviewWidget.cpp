@@ -1,4 +1,4 @@
-#include "TextClipPreviewWidget.h"
+#include "TextClipPreviewWidget.hpp"
 
 #ifdef VLIP_HAS_HEIF
 #include <libheif/heif_cxx.h>

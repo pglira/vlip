@@ -1,5 +1,5 @@
-#include "PropertiesPane.h"
-#include "MainWindow.h"
+#include "PropertiesPane.hpp"
+#include "MainWindow.hpp"
 
 #include <QFormLayout>
 #include <QVBoxLayout>

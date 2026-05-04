@@ -1,4 +1,4 @@
-#include "MessagesPane.h"
+#include "MessagesPane.hpp"
 
 #include <QPlainTextEdit>
 #include <QVBoxLayout>

@@ -1,4 +1,4 @@
-#include "ThumbnailCache.h"
+#include "ThumbnailCache.hpp"
 
 #include <QStandardPaths>
 #include <QDir>

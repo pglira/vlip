@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Project.h"
+#include "Project.hpp"
 #include <QObject>
 #include <QString>
 #include <QProcess>

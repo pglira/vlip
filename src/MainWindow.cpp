@@ -1,12 +1,12 @@
-#include "MainWindow.h"
-#include "TimelinePane.h"
-#include "PropertiesPane.h"
-#include "PreviewPane.h"
-#include "DefaultsPane.h"
-#include "MessagesPane.h"
-#include "Renderer.h"
-#include "Importer.h"
-#include "ProjectIO.h"
+#include "MainWindow.hpp"
+#include "TimelinePane.hpp"
+#include "PropertiesPane.hpp"
+#include "PreviewPane.hpp"
+#include "DefaultsPane.hpp"
+#include "MessagesPane.hpp"
+#include "Renderer.hpp"
+#include "Importer.hpp"
+#include "ProjectIO.hpp"
 
 #include <QDockWidget>
 #include <QMenuBar>
