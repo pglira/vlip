@@ -87,6 +87,10 @@ public:
     // Project file lifecycle
     void newProject();
     void openProject();
+    // Load `path` into the current MainWindow. Returns false (with an
+    // error dialog) if the file is missing, unreadable, or fails parse.
+    // Used by both the File → Open dialog and the CLI `vlip <path>`.
+    bool loadProject(const QString& path);
     void saveProject();
     void saveProjectAs();
 

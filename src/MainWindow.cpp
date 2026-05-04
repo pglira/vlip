@@ -725,21 +725,26 @@ void MainWindow::openProject() {
     QString p = QFileDialog::getOpenFileName(this, tr("Open project"),
         defaultProjectsDir(), tr("vlip projects (*.vlip *.json);;All files (*.*)"));
     if (p.isEmpty()) return;
+    loadProject(p);
+}
+
+bool MainWindow::loadProject(const QString& path) {
     Project np;
     QStringList warns;
     QString err;
-    if (!ProjectIO::load(&np, p, &warns, &err)) {
+    if (!ProjectIO::load(&np, path, &warns, &err)) {
         QMessageBox::critical(this, tr("Open failed"), err);
-        return;
+        return false;
     }
     m_project = np;
-    m_projectPath = p;
+    m_projectPath = path;
     m_selectedId = QUuid();
-    setWindowTitle(QString("vlip — %1").arg(QFileInfo(p).fileName()));
+    setWindowTitle(QString("vlip — %1").arg(QFileInfo(path).fileName()));
     for (const auto& w : warns) emit message(w, MessagesPane::Warning);
     emit selectionChanged(m_selectedId);
     emit projectChanged();
-    emit message(tr("Loaded %1 (%2 items)").arg(p).arg(m_project.items.size()));
+    emit message(tr("Loaded %1 (%2 items)").arg(path).arg(m_project.items.size()));
+    return true;
 }
 
 void MainWindow::saveProject() {
