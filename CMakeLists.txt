@@ -53,6 +53,16 @@ endif()
 
 target_compile_options(vlip PRIVATE -Wall -Wextra -Wno-unused-parameter)
 
+# Install rules. `cmake --install build` puts the binary, .desktop file
+# and SVG icon into the standard freedesktop locations under the chosen
+# prefix (default /usr/local; pass --prefix=$HOME/.local for per-user).
+include(GNUInstallDirs)
+install(TARGETS vlip RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(FILES assets/vlip.desktop
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+install(FILES assets/vlip.svg
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps)
+
 option(BUILD_TESTS "Build the smoke and saveload tests" ON)
 if(BUILD_TESTS)
     add_executable(vlip_smoke

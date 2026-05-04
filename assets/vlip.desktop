@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=vlip
+GenericName=Slideshow Compiler
+Comment=Turn photos and video clips into a single MP4 slideshow
+Exec=vlip
+Icon=vlip
+Terminal=false
+Categories=AudioVideo;Video;
+StartupNotify=true

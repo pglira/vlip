@@ -71,11 +71,17 @@ On Debian / Ubuntu:
 ```sh
 sudo apt install qt6-base-dev qt6-multimedia-dev libheif-dev ffmpeg
 cmake -B build && cmake --build build -j
+
+# Run it straight from the build dir:
 ./build/vlip
+
+# Or install it so it shows up in your application menu:
+cmake --install build --prefix ~/.local   # use sudo + /usr/local for system-wide
 ```
 
-`ffmpeg` must be installed on your system; vlip uses it to render the
-final video.
+`ffmpeg` must be on your system — vlip uses it to render the final
+video. After installing, you may need to log out and back in before
+vlip appears in the menu.
 
 ## License
 
