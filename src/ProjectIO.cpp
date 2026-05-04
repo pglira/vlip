@@ -152,6 +152,8 @@ QJsonObject toJson(const SubtitleStyle& s) {
     o["font_size_px"] = s.fontSizePx;
     o["font_color"] = colorToString(s.fontColor);
     o["bg_color"] = colorToString(s.bgColor);
+    o["outline_color"] = colorToString(s.outlineColor);
+    o["outline_width_px"] = s.outlineWidthPx;
     o["position"] = positionToString(s.position);
     o["visible_secs"] = s.visibleSecs;
     return o;
@@ -163,6 +165,8 @@ SubtitleStyle subtitleFromJson(const QJsonObject& o) {
     s.fontSizePx = o.value("font_size_px").toInt(0);
     s.fontColor = colorFromString(o.value("font_color").toString(), s.fontColor);
     s.bgColor   = colorFromString(o.value("bg_color").toString(), s.bgColor);
+    s.outlineColor   = colorFromString(o.value("outline_color").toString(), s.outlineColor);
+    s.outlineWidthPx = o.value("outline_width_px").toInt(0);
     s.position  = positionFromString(o.value("position").toString("bottom"));
     s.visibleSecs = o.value("visible_secs").toDouble(0.0);
     return s;
@@ -188,6 +192,8 @@ QJsonObject toJson(const TextClipStyle& s) {
     o["font_family"] = s.fontFamily;
     o["font_size_px"] = s.fontSizePx;
     o["font_color"] = colorToString(s.fontColor);
+    o["outline_color"] = colorToString(s.outlineColor);
+    o["outline_width_px"] = s.outlineWidthPx;
     o["vertical_align"] = vAlignToString(s.verticalAlign);
     o["default_duration"] = s.defaultDuration;
     return o;
@@ -198,6 +204,8 @@ TextClipStyle textClipFromJson(const QJsonObject& o) {
     s.fontFamily = o.value("font_family").toString();
     s.fontSizePx = o.value("font_size_px").toInt(0);
     s.fontColor = colorFromString(o.value("font_color").toString(), s.fontColor);
+    s.outlineColor   = colorFromString(o.value("outline_color").toString(), s.outlineColor);
+    s.outlineWidthPx = o.value("outline_width_px").toInt(0);
     s.verticalAlign = vAlignFromString(o.value("vertical_align").toString("middle"));
     s.defaultDuration = o.value("default_duration").toDouble(5.0);
     return s;

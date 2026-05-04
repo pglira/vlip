@@ -25,7 +25,8 @@ public slots:
     void refresh();
 
 private:
-    void pickColor(QPushButton* btn, QColor& target, bool withAlpha);
+    void pickColor(QPushButton* btn, QColor& target, bool withAlpha,
+                   const QString& title = {});
     void paintSwatch(QPushButton* btn, const QColor& c);
 
     MainWindow* m_mw;
@@ -36,12 +37,16 @@ private:
     QFontComboBox *m_fontFamily;
     QSpinBox *m_fontSize;
     QPushButton *m_fontColor, *m_bgColor;
+    QPushButton *m_outlineColor;
+    QSpinBox *m_outlineWidth;
     QComboBox *m_position;
     QDoubleSpinBox *m_subtitleDuration;
     // Text-clip defaults
     QFontComboBox *m_textClipFont;
     QSpinBox *m_textClipFontSize;
     QPushButton *m_textClipFontColor;
+    QPushButton *m_textClipOutlineColor;
+    QSpinBox *m_textClipOutlineWidth;
     QComboBox *m_textClipVAlign;
     QDoubleSpinBox *m_textClipDuration;
     // Date-stamp overlay

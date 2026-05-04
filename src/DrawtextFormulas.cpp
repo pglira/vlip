@@ -84,6 +84,10 @@ QString textClipDrawText(const QString& text, int canvasH,
     chain += QString("text='%1'").arg(escapeDrawText(text));
     chain += QString(":fontcolor=%1").arg(colorToDrawtext(style.fontColor));
     chain += QString(":fontsize=%1").arg(fontSize);
+    if (style.outlineWidthPx > 0) {
+        chain += QString(":bordercolor=%1").arg(colorToDrawtext(style.outlineColor));
+        chain += QString(":borderw=%1").arg(style.outlineWidthPx);
+    }
     // T+C = top-aligned within the text block, each line centered.
     chain += ":text_align=T+C";
     chain += ":x=(w-text_w)/2";
@@ -109,6 +113,10 @@ QString subtitleDrawText(const QString& subtitle, int canvasH,
     chain += QString("text='%1'").arg(escapeDrawText(subtitle));
     chain += QString(":fontcolor=%1").arg(colorToDrawtext(style.fontColor));
     chain += QString(":fontsize=%1").arg(fontSize);
+    if (style.outlineWidthPx > 0) {
+        chain += QString(":bordercolor=%1").arg(colorToDrawtext(style.outlineColor));
+        chain += QString(":borderw=%1").arg(style.outlineWidthPx);
+    }
     chain += QString(":box=1:boxcolor=%1:boxborderw=12").arg(colorToDrawtext(style.bgColor));
     // T+C = top-aligned within the text block, each line centered.
     chain += ":text_align=T+C";

@@ -96,6 +96,8 @@ struct SubtitleStyle {
     int fontSizePx = 0;                  // 0 → auto (canvas-relative)
     QColor fontColor   = QColor(255, 255, 255, 255);
     QColor bgColor     = QColor(0,   0,   0,   140);  // alpha controls box opacity
+    QColor outlineColor    = QColor(0, 0, 0, 255);
+    int    outlineWidthPx  = 0;          // 0 = no outline
     SubtitlePosition position = SubtitlePosition::Bottom;
     // How long, in seconds from the start of each segment, the subtitle
     // stays on screen. 0 = visible for the whole segment.
@@ -106,6 +108,8 @@ struct TextClipStyle {
     QString fontFamily;
     int fontSizePx = 0;                  // 0 → auto (canvas-relative)
     QColor fontColor = QColor(255, 255, 255, 255);
+    QColor outlineColor    = QColor(0, 0, 0, 255);
+    int    outlineWidthPx  = 0;          // 0 = no outline
     // Background is always black when no background image is set —
     // this is intentional and not user-configurable.
     VerticalAlign verticalAlign = VerticalAlign::Middle;

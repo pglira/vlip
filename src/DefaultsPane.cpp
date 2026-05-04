@@ -187,6 +187,13 @@ DefaultsPane::DefaultsPane(MainWindow* mw, QWidget* parent)
     m_bgColor = new QPushButton(tr("Pick…"), subs);
     m_bgColor->setToolTip(tr("Includes alpha — drag the alpha slider for a translucent box."));
     sLay->addRow(tr("Background color:"), m_bgColor);
+    m_outlineColor = new QPushButton(tr("Pick…"), subs);
+    sLay->addRow(tr("Outline color:"), m_outlineColor);
+    m_outlineWidth = new QSpinBox(subs);
+    m_outlineWidth->setRange(0, 50);
+    m_outlineWidth->setSuffix(" px");
+    m_outlineWidth->setSpecialValueText(tr("none"));
+    sLay->addRow(tr("Outline width:"), m_outlineWidth);
     m_position = new QComboBox(subs);
     m_position->addItem(tr("Top"),    int(SubtitlePosition::Top));
     m_position->addItem(tr("Middle"), int(SubtitlePosition::Middle));
@@ -209,6 +216,7 @@ DefaultsPane::DefaultsPane(MainWindow* mw, QWidget* parent)
         Defaults d = m_mw->project().defaults;
         d.subtitle.fontFamily = m_fontFamily->currentFont().family();
         d.subtitle.fontSizePx = m_fontSize->value();
+        d.subtitle.outlineWidthPx = m_outlineWidth->value();
         d.subtitle.position   = SubtitlePosition(m_position->currentData().toInt());
         d.subtitle.visibleSecs = m_subtitleDuration->value();
         // Colors are pushed by their pickers directly (see pickColor lambda).
@@ -222,14 +230,24 @@ DefaultsPane::DefaultsPane(MainWindow* mw, QWidget* parent)
             [pushSubtitle](int) { pushSubtitle(); });
     connect(m_subtitleDuration, qOverload<double>(&QDoubleSpinBox::valueChanged), this,
             [pushSubtitle](double) { pushSubtitle(); });
+    connect(m_outlineWidth, qOverload<int>(&QSpinBox::valueChanged), this,
+            [pushSubtitle](int) { pushSubtitle(); });
     connect(m_fontColor, &QPushButton::clicked, this, [this]() {
         Defaults d = m_mw->project().defaults;
-        pickColor(m_fontColor, d.subtitle.fontColor, /*alpha=*/false);
+        pickColor(m_fontColor, d.subtitle.fontColor, /*alpha=*/false,
+                  tr("Subtitle text color"));
         m_mw->setDefaults(d);
     });
     connect(m_bgColor, &QPushButton::clicked, this, [this]() {
         Defaults d = m_mw->project().defaults;
-        pickColor(m_bgColor, d.subtitle.bgColor, /*alpha=*/true);
+        pickColor(m_bgColor, d.subtitle.bgColor, /*alpha=*/true,
+                  tr("Subtitle background color"));
+        m_mw->setDefaults(d);
+    });
+    connect(m_outlineColor, &QPushButton::clicked, this, [this]() {
+        Defaults d = m_mw->project().defaults;
+        pickColor(m_outlineColor, d.subtitle.outlineColor, /*alpha=*/false,
+                  tr("Subtitle outline color"));
         m_mw->setDefaults(d);
     });
 
@@ -245,6 +263,13 @@ DefaultsPane::DefaultsPane(MainWindow* mw, QWidget* parent)
     tcLay->addRow(tr("Font size:"), m_textClipFontSize);
     m_textClipFontColor = new QPushButton(tr("Pick…"), this);
     tcLay->addRow(tr("Text color:"), m_textClipFontColor);
+    m_textClipOutlineColor = new QPushButton(tr("Pick…"), this);
+    tcLay->addRow(tr("Outline color:"), m_textClipOutlineColor);
+    m_textClipOutlineWidth = new QSpinBox(this);
+    m_textClipOutlineWidth->setRange(0, 50);
+    m_textClipOutlineWidth->setSuffix(" px");
+    m_textClipOutlineWidth->setSpecialValueText(tr("none"));
+    tcLay->addRow(tr("Outline width:"), m_textClipOutlineWidth);
     m_textClipVAlign = new QComboBox(this);
     m_textClipVAlign->addItem(tr("Top"),    int(VerticalAlign::Top));
     m_textClipVAlign->addItem(tr("Middle"), int(VerticalAlign::Middle));
@@ -263,6 +288,7 @@ DefaultsPane::DefaultsPane(MainWindow* mw, QWidget* parent)
         Defaults d = m_mw->project().defaults;
         d.textClip.fontFamily    = m_textClipFont->currentFont().family();
         d.textClip.fontSizePx    = m_textClipFontSize->value();
+        d.textClip.outlineWidthPx = m_textClipOutlineWidth->value();
         d.textClip.verticalAlign = VerticalAlign(m_textClipVAlign->currentData().toInt());
         d.textClip.defaultDuration = m_textClipDuration->value();
         m_mw->setDefaults(d);
@@ -275,9 +301,18 @@ DefaultsPane::DefaultsPane(MainWindow* mw, QWidget* parent)
             [pushTextClip](int) { pushTextClip(); });
     connect(m_textClipDuration, qOverload<double>(&QDoubleSpinBox::valueChanged), this,
             [pushTextClip](double) { pushTextClip(); });
+    connect(m_textClipOutlineWidth, qOverload<int>(&QSpinBox::valueChanged), this,
+            [pushTextClip](int) { pushTextClip(); });
     connect(m_textClipFontColor, &QPushButton::clicked, this, [this]() {
         Defaults d = m_mw->project().defaults;
-        pickColor(m_textClipFontColor, d.textClip.fontColor, /*alpha=*/false);
+        pickColor(m_textClipFontColor, d.textClip.fontColor, /*alpha=*/false,
+                  tr("Text-clip text color"));
+        m_mw->setDefaults(d);
+    });
+    connect(m_textClipOutlineColor, &QPushButton::clicked, this, [this]() {
+        Defaults d = m_mw->project().defaults;
+        pickColor(m_textClipOutlineColor, d.textClip.outlineColor, /*alpha=*/false,
+                  tr("Text-clip outline color"));
         m_mw->setDefaults(d);
     });
     // Date stamp (per-item timestamp burned into a corner of the canvas)
@@ -446,6 +481,8 @@ void DefaultsPane::refresh() {
     m_fontSize->setValue(p.defaults.subtitle.fontSizePx);
     paintSwatch(m_fontColor, p.defaults.subtitle.fontColor);
     paintSwatch(m_bgColor,   p.defaults.subtitle.bgColor);
+    paintSwatch(m_outlineColor, p.defaults.subtitle.outlineColor);
+    m_outlineWidth->setValue(p.defaults.subtitle.outlineWidthPx);
     int posIdx = m_position->findData(int(p.defaults.subtitle.position));
     if (posIdx >= 0) m_position->setCurrentIndex(posIdx);
     m_subtitleDuration->setValue(p.defaults.subtitle.visibleSecs);
@@ -455,6 +492,8 @@ void DefaultsPane::refresh() {
     }
     m_textClipFontSize->setValue(p.defaults.textClip.fontSizePx);
     paintSwatch(m_textClipFontColor, p.defaults.textClip.fontColor);
+    paintSwatch(m_textClipOutlineColor, p.defaults.textClip.outlineColor);
+    m_textClipOutlineWidth->setValue(p.defaults.textClip.outlineWidthPx);
     int vIdx = m_textClipVAlign->findData(int(p.defaults.textClip.verticalAlign));
     if (vIdx >= 0) m_textClipVAlign->setCurrentIndex(vIdx);
     m_textClipDuration->setValue(p.defaults.textClip.defaultDuration);
@@ -503,12 +542,12 @@ void DefaultsPane::refresh() {
     m_suspend = false;
 }
 
-void DefaultsPane::pickColor(QPushButton* btn, QColor& target, bool withAlpha) {
+void DefaultsPane::pickColor(QPushButton* btn, QColor& target, bool withAlpha,
+                             const QString& title) {
     QColorDialog::ColorDialogOptions opts;
     if (withAlpha) opts |= QColorDialog::ShowAlphaChannel;
     QColor c = QColorDialog::getColor(target, this,
-                                      btn == m_fontColor ? tr("Subtitle text color")
-                                                         : tr("Subtitle background color"),
+                                      title.isEmpty() ? tr("Pick color") : title,
                                       opts);
     if (c.isValid()) {
         target = c;
