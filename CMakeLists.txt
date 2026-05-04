@@ -36,6 +36,7 @@ set(SRCS
     src/VideoClipPreviewWidget.cpp
     src/TextClipPreviewWidget.cpp
     src/Renderer.cpp
+    assets/vlip.qrc
 )
 
 add_executable(vlip ${SRCS})
