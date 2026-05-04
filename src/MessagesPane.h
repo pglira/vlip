@@ -8,13 +8,13 @@ namespace vlip {
 
 class MainWindow;
 
-class StatusPane : public QWidget {
+class MessagesPane : public QWidget {
     Q_OBJECT
 public:
     enum Level { Info, Warning, Error };
     Q_ENUM(Level)
 
-    explicit StatusPane(MainWindow* mw, QWidget* parent = nullptr);
+    explicit MessagesPane(MainWindow* mw, QWidget* parent = nullptr);
 
 public slots:
     void appendMessage(const QString& s, int level = Info);

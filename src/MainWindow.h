@@ -15,7 +15,7 @@ class TimelinePane;
 class PropertiesPane;
 class PreviewPane;
 class DefaultsPane;
-class StatusPane;
+class MessagesPane;
 class Renderer;
 
 class MainWindow : public QMainWindow {
@@ -86,7 +86,7 @@ signals:
     // difference is dramatic on 1000+ item projects.
     void itemChanged(const QUuid& id);
     void selectionChanged(const QUuid& id);
-    void statusMessage(const QString& msg, int level = 0);  // StatusPane::Level
+    void message(const QString& msg, int level = 0);  // MessagesPane::Level
 
 protected:
     void closeEvent(QCloseEvent* e) override;
@@ -113,13 +113,13 @@ private:
     PropertiesPane* m_properties = nullptr;
     PreviewPane* m_preview = nullptr;
     DefaultsPane* m_defaults = nullptr;
-    StatusPane* m_status = nullptr;
+    MessagesPane* m_messages = nullptr;
 
     QDockWidget* m_dockTimeline = nullptr;
     QDockWidget* m_dockProperties = nullptr;
     QDockWidget* m_dockPreview = nullptr;
     QDockWidget* m_dockDefaults = nullptr;
-    QDockWidget* m_dockStatus = nullptr;
+    QDockWidget* m_dockMessages = nullptr;
 
     Renderer* m_renderer = nullptr;
 };

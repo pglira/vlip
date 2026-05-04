@@ -30,7 +30,7 @@ set(SRCS
     src/PropertiesPane.cpp
     src/PreviewPane.cpp
     src/DefaultsPane.cpp
-    src/StatusPane.cpp
+    src/MessagesPane.cpp
     src/ImagePreviewWidget.cpp
     src/CropOverlay.cpp
     src/VideoPreviewWidget.cpp

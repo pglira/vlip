@@ -3,7 +3,7 @@
 #include "PropertiesPane.h"
 #include "PreviewPane.h"
 #include "DefaultsPane.h"
-#include "StatusPane.h"
+#include "MessagesPane.h"
 #include "Renderer.h"
 #include "Importer.h"
 #include "ProjectIO.h"
@@ -66,17 +66,17 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     connect(this, &MainWindow::selectionChanged, m_properties, &PropertiesPane::onSelectionChanged);
     connect(this, &MainWindow::selectionChanged, m_preview, &PreviewPane::onSelectionChanged);
     connect(this, &MainWindow::selectionChanged, m_timeline, &TimelinePane::selectId);
-    connect(this, &MainWindow::statusMessage, m_status, &StatusPane::appendMessage);
+    connect(this, &MainWindow::message, m_messages, &MessagesPane::appendMessage);
 
     connect(m_renderer, &Renderer::log, this, [this](const QString& s) {
-        emit statusMessage(s);
+        emit message(s);
     });
     connect(m_renderer, &Renderer::finished, this, [this](bool ok, const QString& msg) {
         if (ok) {
-            emit statusMessage(tr("Render complete: %1").arg(msg));
+            emit message(tr("Render complete: %1").arg(msg));
             QMessageBox::information(this, tr("Render"), tr("Render complete:\n%1").arg(msg));
         } else {
-            emit statusMessage(tr("Render failed: %1").arg(msg), StatusPane::Error);
+            emit message(tr("Render failed: %1").arg(msg), MessagesPane::Error);
             QMessageBox::critical(this, tr("Render failed"), msg);
         }
     });
@@ -115,7 +115,7 @@ void MainWindow::setupPanes() {
     m_properties = new PropertiesPane(this, this);
     m_preview = new PreviewPane(this, this);
     m_defaults = new DefaultsPane(this, this);
-    m_status = new StatusPane(this, this);
+    m_messages = new MessagesPane(this, this);
 
     auto mkDock = [&](const QString& title, QWidget* w, const QString& objName,
                       Qt::DockWidgetArea area) {
@@ -133,7 +133,7 @@ void MainWindow::setupPanes() {
     m_dockPreview = mkDock(tr("Preview"), m_preview, "DockPreview", Qt::RightDockWidgetArea);
     m_dockProperties = mkDock(tr("Properties"), m_properties, "DockProperties", Qt::RightDockWidgetArea);
     m_dockDefaults = mkDock(tr("Project settings"), m_defaults, "DockDefaults", Qt::RightDockWidgetArea);
-    m_dockStatus = mkDock(tr("Status / progress"), m_status, "DockStatus", Qt::BottomDockWidgetArea);
+    m_dockMessages = mkDock(tr("Messages"), m_messages, "DockMessages", Qt::BottomDockWidgetArea);
 
     // Right column: Preview on top, Properties below (small).
     // Defaults is tabbed with Properties so the user can flip between them.
@@ -151,7 +151,7 @@ void MainWindow::setupPanes() {
     // Provide a "View" menu listing each pane so the user can hide/show.
     auto* viewMenu = menuBar()->addMenu(tr("&View"));
     for (QDockWidget* d : {m_dockTimeline, m_dockPreview, m_dockProperties,
-                            m_dockDefaults, m_dockStatus}) {
+                            m_dockDefaults, m_dockMessages}) {
         viewMenu->addAction(d->toggleViewAction());
     }
     viewMenu->addSeparator();
@@ -162,7 +162,7 @@ void MainWindow::setupPanes() {
 void MainWindow::resetLayoutToDefaults() {
     // Remove any prior placement and re-apply the defaults from setupPanes().
     for (auto* d : {m_dockTimeline, m_dockPreview, m_dockProperties,
-                     m_dockDefaults, m_dockStatus}) {
+                     m_dockDefaults, m_dockMessages}) {
         d->setFloating(false);
         d->show();
         removeDockWidget(d);
@@ -171,11 +171,11 @@ void MainWindow::resetLayoutToDefaults() {
     addDockWidget(Qt::RightDockWidgetArea, m_dockPreview);
     addDockWidget(Qt::RightDockWidgetArea, m_dockProperties);
     addDockWidget(Qt::RightDockWidgetArea, m_dockDefaults);
-    addDockWidget(Qt::BottomDockWidgetArea, m_dockStatus);
+    addDockWidget(Qt::BottomDockWidgetArea, m_dockMessages);
     splitDockWidget(m_dockPreview, m_dockProperties, Qt::Vertical);
     tabifyDockWidget(m_dockProperties, m_dockDefaults);
     for (auto* d : {m_dockTimeline, m_dockPreview, m_dockProperties,
-                     m_dockDefaults, m_dockStatus}) {
+                     m_dockDefaults, m_dockMessages}) {
         d->show();
     }
     m_dockProperties->raise();
@@ -301,7 +301,7 @@ void MainWindow::dropEvent(QDropEvent* e) {
 void MainWindow::importPaths(const QStringList& paths) {
     if (paths.isEmpty()) return;
     const int total = paths.size();
-    emit statusMessage(QString("Importing %1 file(s)…").arg(total));
+    emit message(QString("Importing %1 file(s)…").arg(total));
 
     // QtConcurrent::mapped runs Importer::importPath on the global thread
     // pool, one task per file. importPath shells out to ffprobe / ffmpeg
@@ -320,7 +320,7 @@ void MainWindow::importPaths(const QStringList& paths) {
             int bucket = pct / 5;
             if (bucket != *lastBucket) {
                 *lastBucket = bucket;
-                emit statusMessage(QString("Importing… %1% (%2 / %3)")
+                emit message(QString("Importing… %1% (%2 / %3)")
                     .arg(pct).arg(v).arg(total));
             }
         });
@@ -332,21 +332,21 @@ void MainWindow::importPaths(const QStringList& paths) {
             for (int i = 0; i < n; ++i) {
                 const ImportResult& r = watcher->future().resultAt(i);
                 if (!r.ok) {
-                    emit statusMessage(tr("Skipped %1: %2")
+                    emit message(tr("Skipped %1: %2")
                                        .arg(QFileInfo(r.error).fileName())
-                                       .arg(r.error), StatusPane::Warning);
+                                       .arg(r.error), MessagesPane::Warning);
                     continue;
                 }
                 m_project.items.append(r.item);
                 ++added;
                 if (!r.warning.isEmpty()) {
-                    emit statusMessage(QString("%1: %2")
+                    emit message(QString("%1: %2")
                         .arg(QFileInfo(r.item.common().sourcePath).fileName())
-                        .arg(r.warning), StatusPane::Warning);
+                        .arg(r.warning), MessagesPane::Warning);
                 }
             }
             m_project.sortChronologically();
-            emit statusMessage(QString("Imported %1 file(s).").arg(added));
+            emit message(QString("Imported %1 file(s).").arg(added));
             emit projectChanged();
             delete lastBucket;
             watcher->deleteLater();
@@ -613,7 +613,7 @@ void MainWindow::newProject() {
     setWindowTitle(tr("vlip — (untitled)"));
     emit selectionChanged(m_selectedId);
     emit projectChanged();
-    emit statusMessage(tr("New project."));
+    emit message(tr("New project."));
 }
 
 void MainWindow::openProject() {
@@ -631,10 +631,10 @@ void MainWindow::openProject() {
     m_projectPath = p;
     m_selectedId = QUuid();
     setWindowTitle(QString("vlip — %1").arg(QFileInfo(p).fileName()));
-    for (const auto& w : warns) emit statusMessage(w, StatusPane::Warning);
+    for (const auto& w : warns) emit message(w, MessagesPane::Warning);
     emit selectionChanged(m_selectedId);
     emit projectChanged();
-    emit statusMessage(tr("Loaded %1 (%2 items)").arg(p).arg(m_project.items.size()));
+    emit message(tr("Loaded %1 (%2 items)").arg(p).arg(m_project.items.size()));
 }
 
 void MainWindow::saveProject() {
@@ -644,7 +644,7 @@ void MainWindow::saveProject() {
         QMessageBox::critical(this, tr("Save failed"), err);
         return;
     }
-    emit statusMessage(tr("Saved %1").arg(m_projectPath));
+    emit message(tr("Saved %1").arg(m_projectPath));
 }
 
 void MainWindow::saveProjectAs() {
@@ -659,7 +659,7 @@ void MainWindow::saveProjectAs() {
     }
     m_projectPath = p;
     setWindowTitle(QString("vlip — %1").arg(QFileInfo(p).fileName()));
-    emit statusMessage(tr("Saved %1").arg(p));
+    emit message(tr("Saved %1").arg(p));
 }
 
 void MainWindow::renderTo() {
@@ -676,7 +676,7 @@ void MainWindow::renderTo() {
         def, tr("MP4 (*.mp4)"));
     if (out.isEmpty()) return;
     if (!out.endsWith(".mp4", Qt::CaseInsensitive)) out += ".mp4";
-    emit statusMessage(tr("Rendering to %1…").arg(out));
+    emit message(tr("Rendering to %1…").arg(out));
     m_renderer->start(m_project, out);
 }
 

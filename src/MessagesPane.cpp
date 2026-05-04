@@ -1,4 +1,4 @@
-#include "StatusPane.h"
+#include "MessagesPane.h"
 
 #include <QPlainTextEdit>
 #include <QVBoxLayout>
@@ -6,7 +6,7 @@
 
 namespace vlip {
 
-StatusPane::StatusPane(MainWindow*, QWidget* parent) : QWidget(parent) {
+MessagesPane::MessagesPane(MainWindow*, QWidget* parent) : QWidget(parent) {
     auto* outer = new QVBoxLayout(this);
     outer->setContentsMargins(4, 4, 4, 4);
 
@@ -16,7 +16,7 @@ StatusPane::StatusPane(MainWindow*, QWidget* parent) : QWidget(parent) {
     outer->addWidget(m_log, 1);
 }
 
-void StatusPane::appendMessage(const QString& s, int level) {
+void MessagesPane::appendMessage(const QString& s, int level) {
     const char* tag = "INFO";
     switch (level) {
         case Warning: tag = "WARN"; break;
