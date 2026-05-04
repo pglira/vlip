@@ -17,6 +17,7 @@ find_package(Qt6 REQUIRED COMPONENTS
 find_package(PkgConfig REQUIRED)
 
 pkg_check_modules(LIBHEIF IMPORTED_TARGET libheif)
+pkg_check_modules(EXIV2 REQUIRED IMPORTED_TARGET exiv2)
 
 set(SRCS
     src/main.cpp
@@ -46,6 +47,7 @@ target_include_directories(vlip PRIVATE src)
 target_link_libraries(vlip PRIVATE
     Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Svg Qt6::Concurrent
     Qt6::Multimedia Qt6::MultimediaWidgets
+    PkgConfig::EXIV2
 )
 
 if(LIBHEIF_FOUND)
@@ -78,7 +80,8 @@ if(BUILD_TESTS)
         src/DrawtextFormulas.cpp
     )
     target_include_directories(vlip_smoke PRIVATE src)
-    target_link_libraries(vlip_smoke PRIVATE Qt6::Core Qt6::Gui Qt6::Concurrent)
+    target_link_libraries(vlip_smoke PRIVATE
+        Qt6::Core Qt6::Gui Qt6::Concurrent PkgConfig::EXIV2)
     target_compile_options(vlip_smoke PRIVATE -Wall -Wextra -Wno-unused-parameter)
 
     add_executable(vlip_saveload
@@ -90,6 +93,7 @@ if(BUILD_TESTS)
         src/ThumbnailCache.cpp
     )
     target_include_directories(vlip_saveload PRIVATE src)
-    target_link_libraries(vlip_saveload PRIVATE Qt6::Core Qt6::Gui)
+    target_link_libraries(vlip_saveload PRIVATE
+        Qt6::Core Qt6::Gui PkgConfig::EXIV2)
     target_compile_options(vlip_saveload PRIVATE -Wall -Wextra -Wno-unused-parameter)
 endif()
