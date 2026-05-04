@@ -32,6 +32,9 @@ public:
     // Subtitle text + style for the WYSIWYG overlay. Pass empty text
     // (or any text whose trim is empty) to hide the overlay.
     void setSubtitle(const QString& text, const SubtitleStyle& style);
+    // Pre-formatted date-stamp text + style for the burned-in corner
+    // overlay. Pass empty text or an inactive style to hide it.
+    void setDatestamp(const QString& text, const DatestampStyle& style);
     void clear();
 
     // Enter the interactive crop UI. Initial selection = current crop or
@@ -55,6 +58,7 @@ private:
     void positionCropUi();
     void exitCropMode();
     void requestSubtitleOverlay();
+    void requestDatestampOverlay();
 
     QPointer<TextOverlayRenderer> m_overlayRenderer;
     QString m_path;
@@ -78,6 +82,12 @@ private:
     SubtitleStyle m_subtitleStyle;
     TextOverlayRenderer::Key m_subtitleKey;
     QImage m_subtitleOverlay;
+
+    // Date-stamp overlay
+    QString m_datestampText;
+    DatestampStyle m_datestampStyle;
+    TextOverlayRenderer::Key m_datestampKey;
+    QImage m_datestampOverlay;
 };
 
 } // namespace vlip

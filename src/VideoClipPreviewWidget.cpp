@@ -157,8 +157,13 @@ SubtitleOverlayWidget::SubtitleOverlayWidget(QWidget* parent) : QWidget(parent) 
     setAttribute(Qt::WA_TransparentForMouseEvents);
 }
 
-void SubtitleOverlayWidget::setOverlay(const QImage& img) {
-    m_overlay = img;
+void SubtitleOverlayWidget::setSubtitleImage(const QImage& img) {
+    m_subtitle = img;
+    update();
+}
+
+void SubtitleOverlayWidget::setDatestampImage(const QImage& img) {
+    m_datestamp = img;
     update();
 }
 
@@ -168,16 +173,17 @@ void SubtitleOverlayWidget::setCanvasSize(int w, int h) {
 }
 
 void SubtitleOverlayWidget::paintEvent(QPaintEvent*) {
-    if (m_overlay.isNull()) return;
-    // Fit the project canvas inside the widget; the subtitle overlay is
-    // drawn at its canvas position, scaled to that letterboxed area.
+    if (m_subtitle.isNull() && m_datestamp.isNull()) return;
+    // Fit the project canvas inside the widget; the overlays are drawn
+    // at their canvas positions, scaled to that letterboxed area.
     QSize fit = QSize(m_canvasW, m_canvasH).scaled(size(), Qt::KeepAspectRatio);
     QRect dst((width() - fit.width()) / 2,
               (height() - fit.height()) / 2,
               fit.width(), fit.height());
     QPainter p(this);
     p.setRenderHint(QPainter::SmoothPixmapTransform, true);
-    p.drawImage(dst, m_overlay);
+    if (!m_subtitle.isNull())  p.drawImage(dst, m_subtitle);
+    if (!m_datestamp.isNull()) p.drawImage(dst, m_datestamp);
 }
 
 namespace {
@@ -230,10 +236,15 @@ VideoClipPreviewWidget::VideoClipPreviewWidget(MainWindow* mw,
     if (m_overlayRenderer) {
         connect(m_overlayRenderer, &TextOverlayRenderer::overlayReady, this,
                 [this](const TextOverlayRenderer::Key& k) {
-            if (k == m_subtitleKey && m_overlayRenderer) {
-                m_subOverlay->setOverlay(m_overlayRenderer->getOrRequest(m_subtitleKey));
-                m_subOverlay->setVisible(!m_subtitleText.trimmed().isEmpty());
+            if (!m_overlayRenderer) return;
+            if (k == m_subtitleKey) {
+                m_subOverlay->setSubtitleImage(m_overlayRenderer->getOrRequest(m_subtitleKey));
+            } else if (k == m_datestampKey) {
+                m_subOverlay->setDatestampImage(m_overlayRenderer->getOrRequest(m_datestampKey));
+            } else {
+                return;
             }
+            m_subOverlay->setVisible(!m_subOverlay->isEmpty());
         });
     }
 
@@ -403,7 +414,10 @@ void VideoClipPreviewWidget::clear() {
     setPlayButtonText();
     m_subtitleText.clear();
     m_subtitleKey = {};
-    m_subOverlay->setOverlay(QImage());
+    m_datestampText.clear();
+    m_datestampKey = {};
+    m_subOverlay->setSubtitleImage(QImage());
+    m_subOverlay->setDatestampImage(QImage());
     m_subOverlay->hide();
 }
 
@@ -413,6 +427,12 @@ void VideoClipPreviewWidget::setSubtitle(const QString& text, const SubtitleStyl
     requestSubtitleOverlay();
 }
 
+void VideoClipPreviewWidget::setDatestamp(const QString& text, const DatestampStyle& style) {
+    m_datestampText = text;
+    m_datestampStyle = style;
+    requestDatestampOverlay();
+}
+
 void VideoClipPreviewWidget::setProjectCanvas(int w, int h) {
     if (w <= 0 || h <= 0) return;
     if (w == m_projectW && h == m_projectH) return;
@@ -420,30 +440,49 @@ void VideoClipPreviewWidget::setProjectCanvas(int w, int h) {
     m_projectH = h;
     m_subOverlay->setCanvasSize(w, h);
     requestSubtitleOverlay();
+    requestDatestampOverlay();
     m_subOverlay->update();
 }
 
 void VideoClipPreviewWidget::requestSubtitleOverlay() {
-    m_subOverlay->setOverlay(QImage());
+    m_subOverlay->setSubtitleImage(QImage());
     m_subtitleKey = {};
-    if (!m_overlayRenderer || m_subtitleText.trimmed().isEmpty()) {
-        m_subOverlay->hide();
-        return;
-    }
     m_subOverlay->setCanvasSize(m_projectW, m_projectH);
-    QString expr = subtitleDrawText(m_subtitleText, m_projectH, m_subtitleStyle, 0.0, false);
-    if (expr.isEmpty()) {
+    if (m_overlayRenderer && !m_subtitleText.trimmed().isEmpty()) {
+        QString expr = subtitleDrawText(m_subtitleText, m_projectH, m_subtitleStyle, 0.0, false);
+        if (!expr.isEmpty()) {
+            m_subtitleKey = TextOverlayRenderer::Key{expr, m_projectW, m_projectH};
+            QImage img = m_overlayRenderer->getOrRequest(m_subtitleKey);
+            if (!img.isNull()) m_subOverlay->setSubtitleImage(img);
+        }
+    }
+    refreshOverlayVisibility();
+}
+
+void VideoClipPreviewWidget::requestDatestampOverlay() {
+    m_subOverlay->setDatestampImage(QImage());
+    m_datestampKey = {};
+    m_subOverlay->setCanvasSize(m_projectW, m_projectH);
+    if (m_overlayRenderer && !m_datestampText.isEmpty() && m_datestampStyle.active) {
+        QString expr = datestampDrawText(m_datestampText, m_projectH, m_datestampStyle);
+        if (!expr.isEmpty()) {
+            m_datestampKey = TextOverlayRenderer::Key{expr, m_projectW, m_projectH};
+            QImage img = m_overlayRenderer->getOrRequest(m_datestampKey);
+            if (!img.isNull()) m_subOverlay->setDatestampImage(img);
+        }
+    }
+    refreshOverlayVisibility();
+}
+
+void VideoClipPreviewWidget::refreshOverlayVisibility() {
+    const bool any = !m_subOverlay->isEmpty();
+    if (any) {
+        positionSubtitleOverlay();
+        m_subOverlay->show();
+        m_subOverlay->raise();
+    } else {
         m_subOverlay->hide();
-        return;
     }
-    m_subtitleKey = TextOverlayRenderer::Key{expr, m_projectW, m_projectH};
-    QImage img = m_overlayRenderer->getOrRequest(m_subtitleKey);
-    if (!img.isNull()) {
-        m_subOverlay->setOverlay(img);
-    }
-    positionSubtitleOverlay();
-    m_subOverlay->show();
-    m_subOverlay->raise();
 }
 
 void VideoClipPreviewWidget::positionSubtitleOverlay() {

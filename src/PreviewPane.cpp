@@ -4,6 +4,7 @@
 #include "VideoClipPreviewWidget.hpp"
 #include "TextClipPreviewWidget.hpp"
 #include "TextOverlayRenderer.hpp"
+#include "DrawtextFormulas.hpp"
 #include "Project.hpp"
 
 #include <QStackedWidget>
@@ -206,6 +207,10 @@ void PreviewPane::refresh() {
         return;
     }
 
+    const QString datestampText = formatDatestamp(it.common().timestamp,
+                                                  m_mw->project().defaults.timeZone);
+    const auto& datestampStyle = m_mw->project().defaults.datestamp;
+
     switch (it.kind) {
         case ItemKind::ImageClip:
             m_videoClip->clear();
@@ -213,6 +218,7 @@ void PreviewPane::refresh() {
             m_imageClip->setImage(it.common().sourcePath);
             m_imageClip->setCrop(it.imageClip.crop);
             m_imageClip->setSubtitle(it.common().subtitle, m_mw->project().defaults.subtitle);
+            m_imageClip->setDatestamp(datestampText, datestampStyle);
             m_stack->setCurrentIndex(0);
             break;
         case ItemKind::VideoClip:
@@ -220,6 +226,7 @@ void PreviewPane::refresh() {
             m_textClip->clear();
             m_videoClip->setItem(it.common().id);
             m_videoClip->setSubtitle(it.common().subtitle, m_mw->project().defaults.subtitle);
+            m_videoClip->setDatestamp(datestampText, datestampStyle);
             m_stack->setCurrentIndex(1);
             break;
         case ItemKind::TextClip:

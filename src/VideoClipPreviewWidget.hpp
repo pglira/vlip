@@ -18,21 +18,25 @@ class QVideoWidget;
 namespace vlip {
 
 // Transparent child painted on top of a QVideoWidget to show the
-// per-clip subtitle overlay during preview. On X11 this composites
-// reliably; on Wayland with hardware video paths it may not show
-// (the rendered MP4 is unaffected — this is a preview-only concern).
+// per-clip subtitle and burned-in date-stamp overlays during preview.
+// On X11 this composites reliably; on Wayland with hardware video
+// paths it may not show (the rendered MP4 is unaffected — this is a
+// preview-only concern).
 class SubtitleOverlayWidget : public QWidget {
     Q_OBJECT
 public:
     explicit SubtitleOverlayWidget(QWidget* parent = nullptr);
-    void setOverlay(const QImage& img);
+    void setSubtitleImage(const QImage& img);
+    void setDatestampImage(const QImage& img);
     void setCanvasSize(int w, int h);
+    bool isEmpty() const { return m_subtitle.isNull() && m_datestamp.isNull(); }
 
 protected:
     void paintEvent(QPaintEvent* e) override;
 
 private:
-    QImage m_overlay;
+    QImage m_subtitle;
+    QImage m_datestamp;
     int m_canvasW = 1920;
     int m_canvasH = 1080;
 };
@@ -89,6 +93,9 @@ public:
     // Subtitle text + style for the WYSIWYG overlay drawn on top of
     // the live video. Pass empty text to hide the overlay.
     void setSubtitle(const QString& text, const SubtitleStyle& style);
+    // Pre-formatted date-stamp text + style for the burned-in corner
+    // overlay. Pass empty text or an inactive style to hide it.
+    void setDatestamp(const QString& text, const DatestampStyle& style);
     void setProjectCanvas(int width, int height);
     void clear();
 
@@ -106,7 +113,9 @@ private:
     void rebuildLabels();
     void setPlayButtonText();
     void requestSubtitleOverlay();
+    void requestDatestampOverlay();
     void positionSubtitleOverlay();
+    void refreshOverlayVisibility();
 
     // Set on setItem(); applied as setPosition() once the media reports
     // BufferedMedia so a later Play click starts from the trim-start.
@@ -133,6 +142,9 @@ private:
     QString m_subtitleText;
     SubtitleStyle m_subtitleStyle;
     TextOverlayRenderer::Key m_subtitleKey;
+    QString m_datestampText;
+    DatestampStyle m_datestampStyle;
+    TextOverlayRenderer::Key m_datestampKey;
     int m_projectW = 1920;
     int m_projectH = 1080;
 };

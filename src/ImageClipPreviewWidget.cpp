@@ -96,8 +96,12 @@ ImageClipPreviewWidget::ImageClipPreviewWidget(TextOverlayRenderer* overlayRende
     if (m_overlayRenderer) {
         connect(m_overlayRenderer, &TextOverlayRenderer::overlayReady, this,
                 [this](const TextOverlayRenderer::Key& k) {
-            if (k == m_subtitleKey && m_overlayRenderer) {
+            if (!m_overlayRenderer) return;
+            if (k == m_subtitleKey) {
                 m_subtitleOverlay = m_overlayRenderer->getOrRequest(m_subtitleKey);
+                update();
+            } else if (k == m_datestampKey) {
+                m_datestampOverlay = m_overlayRenderer->getOrRequest(m_datestampKey);
                 update();
             }
         });
@@ -129,6 +133,7 @@ void ImageClipPreviewWidget::setProjectCanvas(int w, int h) {
         m_overlay->setLockedAspect(double(w) / double(h));
     }
     requestSubtitleOverlay();
+    requestDatestampOverlay();
     update();
 }
 
@@ -139,6 +144,9 @@ void ImageClipPreviewWidget::clear() {
     m_subtitleText.clear();
     m_subtitleKey = {};
     m_subtitleOverlay = QImage();
+    m_datestampText.clear();
+    m_datestampKey = {};
+    m_datestampOverlay = QImage();
     if (m_cropping) exitCropMode();
     update();
 }
@@ -150,6 +158,13 @@ void ImageClipPreviewWidget::setSubtitle(const QString& text, const SubtitleStyl
     update();
 }
 
+void ImageClipPreviewWidget::setDatestamp(const QString& text, const DatestampStyle& style) {
+    m_datestampText = text;
+    m_datestampStyle = style;
+    requestDatestampOverlay();
+    update();
+}
+
 void ImageClipPreviewWidget::requestSubtitleOverlay() {
     m_subtitleOverlay = QImage();
     m_subtitleKey = {};
@@ -158,6 +173,16 @@ void ImageClipPreviewWidget::requestSubtitleOverlay() {
     if (expr.isEmpty()) return;
     m_subtitleKey = TextOverlayRenderer::Key{expr, m_projectW, m_projectH};
     m_subtitleOverlay = m_overlayRenderer->getOrRequest(m_subtitleKey);
+}
+
+void ImageClipPreviewWidget::requestDatestampOverlay() {
+    m_datestampOverlay = QImage();
+    m_datestampKey = {};
+    if (!m_overlayRenderer || m_datestampText.isEmpty() || !m_datestampStyle.active) return;
+    QString expr = datestampDrawText(m_datestampText, m_projectH, m_datestampStyle);
+    if (expr.isEmpty()) return;
+    m_datestampKey = TextOverlayRenderer::Key{expr, m_projectW, m_projectH};
+    m_datestampOverlay = m_overlayRenderer->getOrRequest(m_datestampKey);
 }
 
 QRect ImageClipPreviewWidget::canvasFitRect() const {
@@ -216,11 +241,17 @@ void ImageClipPreviewWidget::paintEvent(QPaintEvent*) {
         p.drawImage(dst, m_orig);
     }
 
-    // Subtitle overlay in canvas coordinates — only outside crop mode
-    // (cropping shouldn't be obstructed by burn-in text).
-    if (!m_cropping && !m_subtitleOverlay.isNull()) {
-        p.setRenderHint(QPainter::SmoothPixmapTransform, true);
-        p.drawImage(canvasRect, m_subtitleOverlay);
+    // Subtitle and date-stamp overlays in canvas coordinates — only
+    // outside crop mode (cropping shouldn't be obstructed by burn-ins).
+    if (!m_cropping) {
+        if (!m_subtitleOverlay.isNull()) {
+            p.setRenderHint(QPainter::SmoothPixmapTransform, true);
+            p.drawImage(canvasRect, m_subtitleOverlay);
+        }
+        if (!m_datestampOverlay.isNull()) {
+            p.setRenderHint(QPainter::SmoothPixmapTransform, true);
+            p.drawImage(canvasRect, m_datestampOverlay);
+        }
     }
 }
 
