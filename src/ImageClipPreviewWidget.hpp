@@ -8,11 +8,13 @@
 #include <QString>
 #include <QRectF>
 #include <QPointer>
+#include <QVector>
 #include <optional>
 
 class QFrame;
 class QComboBox;
 class QPushButton;
+class QShortcut;
 
 namespace vlip {
 
@@ -76,6 +78,11 @@ private:
     QPushButton* m_btnApply = nullptr;
     QPushButton* m_btnReset = nullptr;
     QPushButton* m_btnCancel = nullptr;
+    // Window-scope shortcuts (Enter, Return, Escape) that drive crop
+    // mode. They're disabled outside crop mode so they don't intercept
+    // those keys from focused QLineEdits / QSpinBoxes elsewhere in the
+    // window — disabled QShortcuts don't consume the key event.
+    QVector<QShortcut*> m_cropShortcuts;
 
     // Subtitle overlay
     QString m_subtitleText;
