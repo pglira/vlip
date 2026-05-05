@@ -796,7 +796,7 @@ void MainWindow::saveProjectAs() {
 
 bool MainWindow::confirmDiscardCurrentProject(const QString& title) {
     return QMessageBox::question(this, title,
-        tr("Discard the current project?"),
+        tr("Continue?"),
         QMessageBox::Yes | QMessageBox::No,
         QMessageBox::No) == QMessageBox::Yes;
 }
