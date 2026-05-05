@@ -93,7 +93,7 @@ enum class Corner { TopLeft, TopRight, BottomLeft, BottomRight };
 
 struct SubtitleStyle {
     QString fontFamily;                  // empty → first available DejaVu / system fallback
-    int fontSizePx = 49;                 // sized for 1080p; user adjusts per project
+    int fontSizePx = 50;                 // sized for 1080p; user adjusts per project
     QColor fontColor   = QColor(255, 255, 255, 255);
     QColor bgColor     = QColor(0,   0,   0,   140);  // alpha controls box opacity
     QColor outlineColor    = QColor(0, 0, 0, 255);
