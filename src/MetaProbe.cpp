@@ -136,6 +136,11 @@ ProbeResult MetaProbe::probe(const QString& path) {
                 r.width = s.value("width").toInt();
                 r.height = s.value("height").toInt();
             }
+            // HDR transfer (HLG or PQ) on any video stream flags the
+            // whole file. iPhone HEVC HDR10 / Dolby Vision footage trips
+            // this; standard BT.709 SDR doesn't.
+            const QString xfer = s.value("color_transfer").toString();
+            if (xfer == "smpte2084" || xfer == "arib-std-b67") r.isHdr = true;
             int nbFrames = s.value("nb_frames").toString().toInt();
             // If avg_frame_rate is "0/0", or nb_frames is 1, this is an image.
             if (nbFrames > 1) hasMotion = true;

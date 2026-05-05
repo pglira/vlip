@@ -84,6 +84,7 @@ QJsonObject toJson(const Item& it) {
             o["src_w"] = it.videoClip.sourceWidth;
             o["src_h"] = it.videoClip.sourceHeight;
             o["has_audio"] = it.videoClip.hasAudio;
+            o["is_hdr"] = it.videoClip.isHdr;
             break;
         case ItemKind::TextClip:
             o["kind"] = "text_clip";
@@ -120,6 +121,7 @@ Item itemFromJson(const QJsonObject& o) {
         it.videoClip.sourceWidth = o.value("src_w").toInt();
         it.videoClip.sourceHeight = o.value("src_h").toInt();
         it.videoClip.hasAudio = o.value("has_audio").toBool(true);
+        it.videoClip.isHdr = o.value("is_hdr").toBool(false);
     }
     return it;
 }

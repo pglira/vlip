@@ -67,6 +67,7 @@ ImportResult Importer::importPath(const QString& path, double defaultImageClipDu
         v.startSecs = 0.0;
         v.endSecs = 0.0; // 0 -> to end
         v.hasAudio = probe.hasAudio;
+        v.isHdr = probe.isHdr;
         r.item = Item::makeVideoClip(v);
     } else {
         ImageClip im;

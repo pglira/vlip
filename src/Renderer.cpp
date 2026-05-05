@@ -255,6 +255,21 @@ QString canvasConformFilters(int W, int H, int FPS) {
                    "setsar=1,fps=%3,format=yuv420p").arg(W).arg(H).arg(FPS);
 }
 
+// HDR → SDR conversion for HLG / PQ video clips. Linearise via zscale,
+// promote to gbrpf32le so the tonemap filter sees float RGB, drop the
+// primaries to BT.709, run a Hable curve to compress luminance, then
+// re-encode in BT.709 transfer + matrix + tv range. Comma-prefixed so
+// it inlines before canvasConformFilters in the per-clip chain.
+QString hdrToSdrFilters() {
+    return QStringLiteral(
+        "zscale=t=linear:npl=100,"
+        "format=gbrpf32le,"
+        "zscale=p=bt709,"
+        "tonemap=tonemap=hable:desat=0,"
+        "zscale=t=bt709:m=bt709:r=tv,"
+        "format=yuv420p,");
+}
+
 // Optional crop prefix for an image clip: empty when the clip has no
 // crop set or the source dimensions aren't known. Returned with a
 // trailing comma so it slots in before the canvas-conform filters.
@@ -353,6 +368,7 @@ VideoBuild buildVideoSegments(const Project& p, const QVector<int>& usedIndices,
 
         QString chain = QString("[%1:v]").arg(vIdx);
         if (it.kind == ItemKind::ImageClip) chain += cropFilterFor(it.imageClip);
+        if (it.kind == ItemKind::VideoClip && it.videoClip.isHdr) chain += hdrToSdrFilters();
         chain += canvasConformFilters(W, H, FPS);
         chain += overlayDrawtextFor(it, p, dur, textWorkDir);
         chain += vFade;

@@ -43,6 +43,10 @@ struct VideoClip {
     int sourceWidth = 0;
     int sourceHeight = 0;
     bool hasAudio = true;
+    // True when the source uses an HDR transfer (HLG / PQ). Triggers
+    // the zscale + tonemap conversion in the renderer so the colours
+    // don't shift when the SDR encoder reinterprets BT.2020 samples.
+    bool isHdr = false;
 };
 
 struct TextClip {

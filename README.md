@@ -83,8 +83,11 @@ cmake --install build --prefix ~/.local   # use sudo + /usr/local for system-wid
 ```
 
 `ffmpeg` must be on your system — vlip uses it to render the final
-video. After installing, you may need to log out and back in before
-vlip appears in the menu.
+video. HDR sources (HLG / PQ, e.g. iPhone HEVC HDR10 or Dolby Vision)
+additionally require an ffmpeg build with `libzimg` (the `zscale` and
+`tonemap` filters); the Debian / Ubuntu `ffmpeg` package ships with it,
+but minimal or self-built ffmpeg may not. After installing, you may need
+to log out and back in before vlip appears in the menu.
 
 ## License
 
