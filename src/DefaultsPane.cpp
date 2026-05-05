@@ -198,6 +198,13 @@ DefaultsPane::DefaultsPane(MainWindow* mw, QWidget* parent)
     m_position->addItem(tr("Middle"), int(SubtitlePosition::Middle));
     m_position->addItem(tr("Bottom"), int(SubtitlePosition::Bottom));
     sLay->addRow(tr("Position:"), m_position);
+    m_subtitleMargin = new QSpinBox(subs);
+    m_subtitleMargin->setRange(0, 1000);
+    m_subtitleMargin->setSuffix(" px");
+    m_subtitleMargin->setToolTip(tr(
+        "Distance from the canvas's top or bottom edge.\n"
+        "Ignored when position is Middle."));
+    sLay->addRow(tr("Margin:"), m_subtitleMargin);
     m_subtitleDuration = new QDoubleSpinBox(subs);
     m_subtitleDuration->setRange(0.0, 600.0);
     m_subtitleDuration->setDecimals(2);
@@ -217,6 +224,7 @@ DefaultsPane::DefaultsPane(MainWindow* mw, QWidget* parent)
         d.subtitle.fontSizePx = m_fontSize->value();
         d.subtitle.outlineWidthPx = m_outlineWidth->value();
         d.subtitle.position   = SubtitlePosition(m_position->currentData().toInt());
+        d.subtitle.marginPx   = m_subtitleMargin->value();
         d.subtitle.visibleSecs = m_subtitleDuration->value();
         // Colors are pushed by their pickers directly (see pickColor lambda).
         m_mw->setDefaults(d);
@@ -226,6 +234,8 @@ DefaultsPane::DefaultsPane(MainWindow* mw, QWidget* parent)
     connect(m_fontSize, qOverload<int>(&QSpinBox::valueChanged), this,
             [pushSubtitle](int) { pushSubtitle(); });
     connect(m_position, qOverload<int>(&QComboBox::currentIndexChanged), this,
+            [pushSubtitle](int) { pushSubtitle(); });
+    connect(m_subtitleMargin, qOverload<int>(&QSpinBox::valueChanged), this,
             [pushSubtitle](int) { pushSubtitle(); });
     connect(m_subtitleDuration, qOverload<double>(&QDoubleSpinBox::valueChanged), this,
             [pushSubtitle](double) { pushSubtitle(); });
@@ -483,6 +493,7 @@ void DefaultsPane::refresh() {
     m_outlineWidth->setValue(p.defaults.subtitle.outlineWidthPx);
     int posIdx = m_position->findData(int(p.defaults.subtitle.position));
     if (posIdx >= 0) m_position->setCurrentIndex(posIdx);
+    m_subtitleMargin->setValue(p.defaults.subtitle.marginPx);
     m_subtitleDuration->setValue(p.defaults.subtitle.visibleSecs);
 
     if (!p.defaults.textClip.fontFamily.isEmpty()) {

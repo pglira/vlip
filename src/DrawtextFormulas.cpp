@@ -152,10 +152,11 @@ QString subtitleDrawText(const QString& subtitle,
     // T+C = top-aligned within the text block, each line centered.
     chain += ":text_align=T+C";
     chain += ":x=(w-text_w)/2";
+    const int margin = std::max(0, style.marginPx);
     switch (style.position) {
-        case SubtitlePosition::Top:    chain += ":y=h/12"; break;
+        case SubtitlePosition::Top:    chain += QString(":y=%1").arg(margin); break;
         case SubtitlePosition::Middle: chain += ":y=(h-text_h)/2"; break;
-        case SubtitlePosition::Bottom: chain += ":y=h-(text_h)-h/12"; break;
+        case SubtitlePosition::Bottom: chain += QString(":y=h-(text_h)-%1").arg(margin); break;
     }
     // Visibility window: each segment's filtergraph time starts at 0, so
     // lt(t,N) limits the burn to the first N seconds. Skipped when 0

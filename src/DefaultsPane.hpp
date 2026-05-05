@@ -40,6 +40,7 @@ private:
     QPushButton *m_outlineColor;
     QSpinBox *m_outlineWidth;
     QComboBox *m_position;
+    QSpinBox *m_subtitleMargin;
     QDoubleSpinBox *m_subtitleDuration;
     // Text-clip defaults
     QFontComboBox *m_textClipFont;

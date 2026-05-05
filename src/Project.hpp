@@ -99,6 +99,7 @@ struct SubtitleStyle {
     QColor outlineColor    = QColor(0, 0, 0, 255);
     int    outlineWidthPx  = 0;          // 0 = no outline
     SubtitlePosition position = SubtitlePosition::Bottom;
+    int    marginPx = 90;                // distance from canvas edge for Top/Bottom; ignored for Middle
     // How long, in seconds from the start of each segment, the subtitle
     // stays on screen. 0 = visible for the whole segment.
     double visibleSecs = 0.0;

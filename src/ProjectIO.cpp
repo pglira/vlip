@@ -165,6 +165,7 @@ QJsonObject toJson(const SubtitleStyle& s) {
     o["outline_color"] = colorToString(s.outlineColor);
     o["outline_width_px"] = s.outlineWidthPx;
     o["position"] = positionToString(s.position);
+    o["margin_px"] = s.marginPx;
     o["visible_secs"] = s.visibleSecs;
     return o;
 }
@@ -178,6 +179,7 @@ SubtitleStyle subtitleFromJson(const QJsonObject& o) {
     s.outlineColor   = colorFromString(o.value("outline_color").toString(), s.outlineColor);
     s.outlineWidthPx = o.value("outline_width_px").toInt(0);
     s.position  = positionFromString(o.value("position").toString("bottom"));
+    s.marginPx  = o.value("margin_px").toInt(s.marginPx);
     s.visibleSecs = o.value("visible_secs").toDouble(0.0);
     return s;
 }
