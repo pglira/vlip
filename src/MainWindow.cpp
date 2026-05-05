@@ -35,6 +35,22 @@
 
 namespace vlip {
 
+namespace {
+// Fill in any empty font-family fields with the system UI font, so the
+// DefaultsPane's QFontComboBox (initialised to QApplication::font())
+// and the renderer (fc-match resolves the family name) agree from the
+// start. Without this, an empty fontFamily makes the renderer fall
+// through to its hard-coded DejaVu list while the UI displays the
+// system default — they silently swap the moment the user touches any
+// setting.
+void applySystemFontDefaults(Defaults& d) {
+    const QString sys = QApplication::font().family();
+    if (d.subtitle.fontFamily.isEmpty())  d.subtitle.fontFamily  = sys;
+    if (d.textClip.fontFamily.isEmpty())  d.textClip.fontFamily  = sys;
+    if (d.datestamp.fontFamily.isEmpty()) d.datestamp.fontFamily = sys;
+}
+} // namespace
+
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     setWindowTitle(tr("vlip — Slideshow Compiler"));
     setAcceptDrops(true);
@@ -42,6 +58,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     resize(1400, 900);
 
     m_renderer = new Renderer(this);
+
+    applySystemFontDefaults(m_project.defaults);
 
     setupMenus();
     setupPanes();
@@ -759,6 +777,7 @@ QString MainWindow::defaultProjectsDir() const {
 void MainWindow::newProject() {
     if (!confirmDiscardCurrentProject(tr("New project"))) return;
     m_project = Project();
+    applySystemFontDefaults(m_project.defaults);
     m_projectPath.clear();
     m_selectedId = QUuid();
     setWindowTitle(tr("vlip — (untitled)"));
@@ -784,6 +803,7 @@ bool MainWindow::loadProject(const QString& path) {
         return false;
     }
     m_project = np;
+    applySystemFontDefaults(m_project.defaults);
     m_projectPath = path;
     m_selectedId = QUuid();
     setWindowTitle(QString("vlip — %1").arg(QFileInfo(path).fileName()));
