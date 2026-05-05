@@ -61,6 +61,9 @@ private:
     // Background-music playlist
     QListWidget *m_musicList;
     QPushButton *m_musicAdd, *m_musicRemove, *m_musicUp, *m_musicDown;
+    // Automatic loudness levelling toggle. Drives the renderer's per-source
+    // EBU R128 probe + bias pass.
+    QCheckBox *m_audioLevellingActive;
     bool m_suspend = false;
 };
 

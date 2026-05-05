@@ -5,6 +5,7 @@
 #include <QString>
 #include <QStringList>
 #include <QVector>
+#include <QHash>
 #include <QProcess>
 
 namespace vlip {
@@ -56,7 +57,7 @@ signals:
     void cancelled();
 
 private:
-    enum class State { Idle, Batches, Concat };
+    enum class State { Idle, Probing, Batches, Concat };
     // Batch size auto-scales: anchored at "10 items per batch is
     // comfortable at 1080p", inversely scaled by canvas pixel count so
     // a 4K render uses ~2-3 items per batch and a 720p one stays at 10.
@@ -65,6 +66,14 @@ private:
     static constexpr int kBaseCanvasW   = 1920;
     static constexpr int kBaseCanvasH   = 1080;
     static constexpr int kSampleRate    = 48000;
+    // Loudness target for the per-source bias when audioLevelling is on.
+    // -16 LUFS is the streaming/consumer-typical landing zone (roughly
+    // what Apple Music / Spotify mastering targets) — comfortable for
+    // living-room TV playback without overdriving the receiver.
+    static constexpr double kTargetLufs = -16.0;
+    // Hard clamp on the per-source gain bias so a near-silent source
+    // doesn't get cranked up enough to amplify hiss into clipping.
+    static constexpr double kMaxGainDb  = 20.0;
 
     QProcess* m_proc = nullptr;
     QString m_outPath;
@@ -84,6 +93,17 @@ private:
     int m_batchSize = kBaseBatchSize;       // chosen per-render from canvas size
     double m_completedBatchDuration = 0.0;  // running offset for global progress
 
+    // Loudness probe pass (only populated when audioLevelling.active).
+    // m_probeQueue holds source paths still to measure; once drained,
+    // m_audioGainsDb maps each source path to its bias in dB
+    // (kTargetLufs - measured, clamped to ±kMaxGainDb).
+    QStringList m_probeQueue;
+    QString m_currentProbePath;
+    QHash<QString, double> m_audioGainsDb;
+    int m_probeTotal = 0;
+
+    bool startNextProbe(QString* err);
+    void onProbeFinished(int code, int exitStatus);
     bool startNextBatch(QString* err);
     bool startConcatPass(QString* err);
     QStringList buildBatchArgs(int firstUsedIndex, int count,

@@ -401,13 +401,32 @@ DefaultsPane::DefaultsPane(MainWindow* mw, QWidget* parent)
             [pushDatestamp](const QString&) { pushDatestamp(); });
     connect(m_dsFormat, &QLineEdit::editingFinished, this, pushDatestamp);
 
-    // ----- Background music tab: project-wide music playlist. Plays
-    // during image and text clips; the playhead pauses at each video
-    // clip's start and resumes from the same position at its end.
-    auto* bgmTab = addTab(tr("Background music"));
+    // ----- Audio tab: project-wide music playlist plus the automatic
+    // levelling toggle. Music plays during image and text clips; the
+    // playhead pauses at each video clip's start and resumes from the
+    // same position at its end.
+    auto* bgmTab = addTab(tr("Audio"));
+
+    // Automatic levelling: probe each audio source's loudness at render
+    // time and bias every source toward a common target so video and
+    // music aren't wildly different in volume.
+    m_audioLevellingActive = new QCheckBox(tr("Automatic audio levelling"), this);
+    m_audioLevellingActive->setToolTip(tr(
+        "When on, each video clip's audio and each music track is measured "
+        "(EBU R128 integrated loudness) at render time and biased toward a "
+        "common target (-16 LUFS) so they end up roughly equally loud. "
+        "Adds a few seconds per source to render time."));
+    bgmTab->addWidget(m_audioLevellingActive);
+    connect(m_audioLevellingActive, &QCheckBox::toggled, this, [this](bool on) {
+        if (m_suspend) return;
+        Defaults d = m_mw->project().defaults;
+        d.audioLevelling.active = on;
+        m_mw->setDefaults(d);
+    });
+
     auto* bgmHelp = new QLabel(tr(
-        "Plays during image and text clips. The music pauses when a video\n"
-        "clip starts and resumes from the same position once the clip ends —\n"
+        "Background music plays during image and text clips. The music pauses when a\n"
+        "video clip starts and resumes from the same position once the clip ends —\n"
         "crossfades use the same duration as visual transitions."), this);
     bgmHelp->setWordWrap(true);
     bgmTab->addWidget(bgmHelp);
@@ -522,6 +541,8 @@ void DefaultsPane::refresh() {
         if (tzIdx >= 0) m_timeZone->setCurrentIndex(tzIdx);
         else m_timeZone->setEditText(tz);
     }
+
+    m_audioLevellingActive->setChecked(p.defaults.audioLevelling.active);
 
     // Background-music playlist. Preserve the selection across refresh
     // when possible so reorder buttons feel responsive.

@@ -8,6 +8,10 @@
 #include <QProcess>
 #include <QDateTime>
 #include <QUuid>
+#include <QSet>
+#include <QRegularExpression>
+#include <cmath>
+#include <optional>
 
 namespace vlip {
 
@@ -131,7 +135,6 @@ bool Renderer::start(const Project& p, const QString& outPath) {
         return false;
     }
 
-    m_state = State::Batches;
     emit log(QString("Rendering %1 items in %2 batches of up to %3 (canvas %4×%5).")
              .arg(m_usedIndices.size())
              .arg(m_batchDurations.size())
@@ -139,10 +142,48 @@ bool Renderer::start(const Project& p, const QString& outPath) {
              .arg(p.canvas.width)
              .arg(p.canvas.height));
 
+    // Build the loudness-probe queue: every distinct audio source the
+    // render will actually use (video clips with audio + music tracks).
+    // Skipped entirely when automatic levelling is off.
+    m_probeQueue.clear();
+    m_audioGainsDb.clear();
+    m_currentProbePath.clear();
+    if (p.defaults.audioLevelling.active) {
+        QSet<QString> seen;
+        for (int idx : m_usedIndices) {
+            const Item& it = p.items[idx];
+            if (it.kind != ItemKind::VideoClip) continue;
+            if (!it.videoClip.hasAudio) continue;
+            const QString& path = it.common().sourcePath;
+            if (path.isEmpty() || seen.contains(path)) continue;
+            if (!QFileInfo::exists(path)) continue;
+            seen.insert(path);
+            m_probeQueue.append(path);
+        }
+        for (const QString& path : p.backgroundMusic) {
+            if (path.isEmpty() || seen.contains(path)) continue;
+            if (!QFileInfo::exists(path)) continue;
+            seen.insert(path);
+            m_probeQueue.append(path);
+        }
+    }
+    m_probeTotal = m_probeQueue.size();
+
     QString runErr;
-    if (!startNextBatch(&runErr)) {
-        abortWithFailure(runErr);
-        return false;
+    if (!m_probeQueue.isEmpty()) {
+        m_state = State::Probing;
+        emit log(QString("Measuring loudness of %1 audio source(s) (target %2 LUFS)…")
+                 .arg(m_probeTotal).arg(kTargetLufs, 0, 'f', 0));
+        if (!startNextProbe(&runErr)) {
+            abortWithFailure(runErr);
+            return false;
+        }
+    } else {
+        m_state = State::Batches;
+        if (!startNextBatch(&runErr)) {
+            abortWithFailure(runErr);
+            return false;
+        }
     }
     return true;
 }
@@ -333,14 +374,20 @@ struct AudioBuild {
 // corresponding audio `-i` inputs to `args`. Audio for image/text clips
 // and silent video clips is anullsrc; video clips with audio reopen the
 // source file with -ss/-t/-vn so only the relevant slice's audio decodes.
+//
+// `gainsDb` is consulted only when `audioLevelling` is active: it maps
+// each video-clip source path to a pre-measured bias in dB, inserted as
+// a `volume=` node so the clip lands near the EBU R128 target.
 AudioBuild buildAudioSegments(const Project& p, const QVector<int>& usedIndices,
                               int sampleRate,
+                              const QHash<QString, double>& gainsDb,
                               QStringList& args, QStringList& chains,
                               int& inputIndex)
 {
     AudioBuild b;
     const int FPS = p.canvas.fps;
     const double transition = std::max(0.0, p.defaults.transitionSecs);
+    const bool levelling = p.defaults.audioLevelling.active;
 
     for (int globalIdx = 0; globalIdx < usedIndices.size(); ++globalIdx) {
         const Item& it = p.items[usedIndices[globalIdx]];
@@ -364,6 +411,12 @@ AudioBuild buildAudioSegments(const Project& p, const QVector<int>& usedIndices,
                              "asetpts=PTS-STARTPTS,aresample=%2,apad,atrim=0:%3,"
                              "asetpts=PTS-STARTPTS")
                 .arg(aIdx).arg(sampleRate).arg(dur, 0, 'f', 6);
+            if (levelling) {
+                const double bias = gainsDb.value(vid.common.sourcePath, 0.0);
+                if (bias != 0.0) {
+                    achain += QString(",volume=%1dB").arg(bias, 0, 'f', 2);
+                }
+            }
         } else {
             args << "-f" << "lavfi"
                  << "-t" << QString::number(dur, 'f', 4)
@@ -431,7 +484,8 @@ QStringList Renderer::buildConcatArgs(const QString& outPath)
     // uninterrupted run — no per-batch AAC priming slop accumulating.
     QStringList chains;
     AudioBuild ab = buildAudioSegments(m_renderProject, m_usedIndices,
-                                       kSampleRate, args, chains, inputIndex);
+                                       kSampleRate, m_audioGainsDb,
+                                       args, chains, inputIndex);
     chains << (ab.concatLabels +
                QString("concat=n=%1:v=0:a=1[aout]").arg(ab.nUsed));
 
@@ -462,15 +516,15 @@ QString Renderer::appendBackgroundMusicChain(QStringList& args, QStringList& cha
                                              int& inputIndex,
                                              const QString& currentAudioLabel)
 {
-    QStringList musicFiles;
+    QStringList musicPaths;
     for (const QString& path : m_renderProject.backgroundMusic) {
         if (QFileInfo::exists(path)) {
-            musicFiles.append(path);
+            musicPaths.append(path);
         } else {
             emit log(QString("Background-music file missing, skipping: %1").arg(path));
         }
     }
-    if (musicFiles.isEmpty() || m_totalDuration <= 0.001) return currentAudioLabel;
+    if (musicPaths.isEmpty() || m_totalDuration <= 0.001) return currentAudioLabel;
 
     const double transition = std::max(0.0, m_renderProject.defaults.transitionSecs);
 
@@ -521,17 +575,28 @@ QString Renderer::appendBackgroundMusicChain(QStringList& args, QStringList& cha
         return currentAudioLabel;
     }
 
-    // Add music inputs and concat the playlist into a single stream.
+    // Add music inputs. When automatic levelling is active, each track
+    // gets its own volume= node *before* the playlist concat so the
+    // measured per-track bias survives the later asplit/atrim slicing.
+    const bool levelling = m_renderProject.defaults.audioLevelling.active;
     const int firstMusicIdx = inputIndex;
-    for (const QString& path : musicFiles) {
+    for (const QString& path : musicPaths) {
         args << "-i" << path;
         ++inputIndex;
     }
     QString musicConcat;
-    for (int i = 0; i < musicFiles.size(); ++i) {
-        musicConcat += QString("[%1:a]").arg(firstMusicIdx + i);
+    for (int i = 0; i < musicPaths.size(); ++i) {
+        const int idx = firstMusicIdx + i;
+        const double bias = levelling ? m_audioGainsDb.value(musicPaths[i], 0.0) : 0.0;
+        if (bias != 0.0) {
+            chains << QString("[%1:a]volume=%2dB[mt%3]")
+                          .arg(idx).arg(bias, 0, 'f', 2).arg(i);
+            musicConcat += QString("[mt%1]").arg(i);
+        } else {
+            musicConcat += QString("[%1:a]").arg(idx);
+        }
     }
-    musicConcat += QString("concat=n=%1:v=0:a=1[mc]").arg(musicFiles.size());
+    musicConcat += QString("concat=n=%1:v=0:a=1[mc]").arg(musicPaths.size());
     chains << musicConcat;
 
     // Loop and trim the playlist to the *total music play time* (i.e.
@@ -594,10 +659,84 @@ QString Renderer::appendBackgroundMusicChain(QStringList& args, QStringList& cha
     chains << QString("%1concat=n=%2:v=0:a=1[mfinal]")
               .arg(concatInputs).arg(chunks.size());
 
-    // Mix the per-clip audio with the chunked music.
-    chains << QString("%1[mfinal]amix=inputs=2:duration=first:dropout_transition=0[afinal]")
-              .arg(currentAudioLabel);
+    // Mix the per-clip audio with the chunked music. With normalize=0
+    // the per-source biases reach the output verbatim instead of being
+    // halved by amix's default per-input scaling — the levelling pass
+    // already picked the right absolute gains, normalize would undo that.
+    const QString amixOpts = levelling
+        ? QStringLiteral("inputs=2:duration=first:dropout_transition=0:normalize=0")
+        : QStringLiteral("inputs=2:duration=first:dropout_transition=0");
+    chains << QString("%1[mfinal]amix=%2[afinal]").arg(currentAudioLabel, amixOpts);
     return "[afinal]";
+}
+
+// Pull the last `I: <X> LUFS` value out of an ebur128 stderr dump.
+// The filter prints `I:` once per second of streaming progress and
+// once more in the trailing Summary block — taking the last finite
+// match yields the integrated value either way. nan / -inf (silent
+// audio) returns nullopt so the caller falls back to a no-op gain.
+static std::optional<double> parseIntegratedLufs(const QString& stderrText) {
+    static const QRegularExpression re(
+        QStringLiteral(R"(I:\s*(-?\d+(?:\.\d+)?|-inf|nan)\s+LUFS)"));
+    auto it = re.globalMatch(stderrText);
+    std::optional<double> last;
+    while (it.hasNext()) {
+        auto m = it.next();
+        bool ok = false;
+        const double v = m.captured(1).toDouble(&ok);
+        if (ok && std::isfinite(v)) last = v;
+    }
+    return last;
+}
+
+bool Renderer::startNextProbe(QString* err)
+{
+    if (m_probeQueue.isEmpty()) {
+        // All probes done — slide into the regular batch pipeline.
+        m_state = State::Batches;
+        return startNextBatch(err);
+    }
+    m_currentProbePath = m_probeQueue.takeFirst();
+    const int doneIdx = m_probeTotal - m_probeQueue.size();  // 1-based
+    emit log(QString("Probing loudness (%1/%2): %3")
+             .arg(doneIdx).arg(m_probeTotal)
+             .arg(QFileInfo(m_currentProbePath).fileName()));
+
+    QStringList args;
+    args << "-hide_banner" << "-nostats"
+         << "-i" << m_currentProbePath
+         << "-vn"                               // audio-only — skip video decode
+         << "-af" << "ebur128"
+         << "-f" << "null" << "-";
+    return spawnFfmpeg(args, err);
+}
+
+void Renderer::onProbeFinished(int code, int exitStatus)
+{
+    if (m_cancelRequested) { emitCancelled(); return; }
+    const bool ok = (exitStatus == int(QProcess::NormalExit)) && code == 0;
+
+    if (ok) {
+        if (auto lufs = parseIntegratedLufs(m_logTail)) {
+            const double bias = std::clamp(kTargetLufs - *lufs,
+                                           -kMaxGainDb, kMaxGainDb);
+            m_audioGainsDb.insert(m_currentProbePath, bias);
+            emit log(QString("  measured %1 LUFS → %2%3 dB")
+                     .arg(*lufs, 0, 'f', 1)
+                     .arg(bias >= 0 ? "+" : "")
+                     .arg(bias, 0, 'f', 1));
+        } else {
+            // Silent / unparseable — render at native level.
+            emit log(QString("  no integrated loudness reading; leaving at 0 dB"));
+        }
+    } else {
+        // Don't fail the whole render over a probe — fall back to 0 dB.
+        emit log(QString("  ebur128 probe failed (exit %1); leaving at 0 dB").arg(code));
+    }
+    m_currentProbePath.clear();
+
+    QString err;
+    if (!startNextProbe(&err)) abortWithFailure(err);
 }
 
 bool Renderer::startNextBatch(QString* err)
@@ -664,7 +803,8 @@ bool Renderer::spawnFfmpeg(const QStringList& args, QString* err)
     });
     connect(m_proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
             this, [this](int code, QProcess::ExitStatus status) {
-        if (m_state == State::Batches) onBatchFinished(code, int(status));
+        if (m_state == State::Probing) onProbeFinished(code, int(status));
+        else if (m_state == State::Batches) onBatchFinished(code, int(status));
         else if (m_state == State::Concat) onConcatFinished(code, int(status));
     });
 

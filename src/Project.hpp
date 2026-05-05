@@ -132,12 +132,26 @@ struct DatestampStyle {
     QString format = "dd.MM.yyyy HH:mm";
 };
 
+// Automatic audio levelling. When active, the renderer probes each
+// audio source (video clips with audio + each background-music track)
+// for its EBU R128 integrated loudness and applies a single per-source
+// `volume=NdB` bias so every source ends up near a common target
+// (-16 LUFS — consumer/streaming-typical, suits living-room TV
+// playback). The final amix also switches to normalize=0 so the
+// computed gains reach the output verbatim instead of being halved by
+// amix's default per-input scaling. When inactive, audio is mixed at
+// its native level with amix's default scaling.
+struct AudioLevelling {
+    bool active = true;
+};
+
 struct Defaults {
     double imageClipDuration = 4.0;
     double transitionSecs = 0.8;    // fade-out/fade-in duration between clips; 0 disables
     SubtitleStyle subtitle;
     TextClipStyle textClip;
     DatestampStyle datestamp;
+    AudioLevelling audioLevelling;
     // IANA time-zone id (e.g. "Europe/Vienna"). Empty → system local.
     // Used to render per-item timestamps in the date-stamp overlay.
     QByteArray timeZone;
@@ -148,9 +162,9 @@ struct Project {
     Canvas canvas;
     Defaults defaults;
     QVector<Item> items;
-    // Project-wide background-music playlist. Played continuously over
-    // the rendered video, ducked out around video clips so the video's
-    // own audio stays intelligible.
+    // Project-wide background-music playlist. Plays during image and
+    // text clips; the playhead pauses at each video clip's start and
+    // resumes at its end.
     QStringList backgroundMusic;
 
     void sortChronologically();

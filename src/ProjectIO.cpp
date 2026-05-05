@@ -262,6 +262,18 @@ DatestampStyle datestampFromJson(const QJsonObject& o) {
     return d;
 }
 
+QJsonObject toJson(const AudioLevelling& a) {
+    QJsonObject o;
+    o["active"] = a.active;
+    return o;
+}
+
+AudioLevelling audioLevellingFromJson(const QJsonObject& o) {
+    AudioLevelling a;
+    a.active = o.value("active").toBool(a.active);
+    return a;
+}
+
 } // namespace
 
 bool ProjectIO::save(const Project& p, const QString& path, QString* err) {
@@ -281,6 +293,7 @@ bool ProjectIO::save(const Project& p, const QString& path, QString* err) {
     defaults["subtitle"] = toJson(p.defaults.subtitle);
     defaults["text_clip"] = toJson(p.defaults.textClip);
     defaults["datestamp"] = toJson(p.defaults.datestamp);
+    defaults["audio_levelling"] = toJson(p.defaults.audioLevelling);
     defaults["time_zone"] = QString::fromUtf8(p.defaults.timeZone);
     root["defaults"] = defaults;
 
@@ -337,6 +350,10 @@ bool ProjectIO::load(Project* p, const QString& path, QStringList* warnings, QSt
     if (defaults.contains("datestamp")) {
         p->defaults.datestamp = datestampFromJson(defaults.value("datestamp").toObject());
     }
+    if (defaults.contains("audio_levelling")) {
+        p->defaults.audioLevelling =
+            audioLevellingFromJson(defaults.value("audio_levelling").toObject());
+    }
     if (defaults.contains("time_zone")) {
         p->defaults.timeZone = defaults.value("time_zone").toString().toUtf8();
     }
@@ -374,7 +391,12 @@ bool ProjectIO::load(Project* p, const QString& path, QStringList* warnings, QSt
 
     p->backgroundMusic.clear();
     for (auto v : root.value("background_music").toArray()) {
-        QString musicPath = v.toString();
+        // Backwards compat: a short-lived in-development format wrapped
+        // each entry in a {path, volume_db} object; older projects
+        // stored a plain string. Read either.
+        const QString musicPath = v.isString()
+            ? v.toString()
+            : v.toObject().value("path").toString();
         if (musicPath.isEmpty()) continue;
         p->backgroundMusic.append(musicPath);
         if (!QFileInfo::exists(musicPath) && warnings) {
