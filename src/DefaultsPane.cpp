@@ -391,13 +391,14 @@ DefaultsPane::DefaultsPane(MainWindow* mw, QWidget* parent)
             [pushDatestamp](const QString&) { pushDatestamp(); });
     connect(m_dsFormat, &QLineEdit::editingFinished, this, pushDatestamp);
 
-    // ----- Background music tab: project-wide music playlist that plays
-    // continuously over the rendered video, ducked around video clips.
+    // ----- Background music tab: project-wide music playlist. Plays
+    // during image and text clips; the playhead pauses at each video
+    // clip's start and resumes from the same position at its end.
     auto* bgmTab = addTab(tr("Background music"));
     auto* bgmHelp = new QLabel(tr(
-        "Plays continuously over the slideshow. Music fades out before each\n"
-        "video clip, stays muted during it, and fades back in after — using\n"
-        "the same fade duration as visual transitions."), this);
+        "Plays during image and text clips. The music pauses when a video\n"
+        "clip starts and resumes from the same position once the clip ends —\n"
+        "crossfades use the same duration as visual transitions."), this);
     bgmHelp->setWordWrap(true);
     bgmTab->addWidget(bgmHelp);
 
