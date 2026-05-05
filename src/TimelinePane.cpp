@@ -74,7 +74,14 @@ TimelinePane::TimelinePane(MainWindow* mw, QWidget* parent) : QWidget(parent), m
     auto* aTextBefore = textMenu->addAction(tr("Before selected item"));
     auto* aTextAfter  = textMenu->addAction(tr("After selected item"));
     btnInsertText->setMenu(textMenu);
-    auto* btnRemove = new QPushButton(tr("Remove"), this);
+    auto* btnRemove = new QPushButton(tr("Remove  "), this);
+    btnRemove->setToolTip(tr(
+        "Remove the selected item, every item not marked 'used', or all items."));
+    auto* removeMenu = new QMenu(btnRemove);
+    auto* aRemoveSelected = removeMenu->addAction(tr("Selected item"));
+    auto* aRemoveUnused   = removeMenu->addAction(tr("Unused items"));
+    auto* aRemoveAll      = removeMenu->addAction(tr("All items"));
+    btnRemove->setMenu(removeMenu);
     m_chkHideUnused = new QCheckBox(tr("Hide unused"), this);
     m_chkHideUnused->setToolTip(tr(
         "Show only items marked as 'used'. Navigation shortcuts skip hidden items."));
@@ -135,12 +142,6 @@ TimelinePane::TimelinePane(MainWindow* mw, QWidget* parent) : QWidget(parent), m
             tr("Media (%1);;All files (*.*)").arg(exts.join(' ')));
         if (!paths.isEmpty()) m_mw->importPaths(paths);
     });
-    connect(btnRemove, &QPushButton::clicked, this, [this]() {
-        auto* it = m_tree->currentItem();
-        if (!it) return;
-        QUuid id = QUuid::fromString(it->data(0, Qt::UserRole).toString());
-        m_mw->removeItem(id);
-    });
     auto currentRowId = [this]() {
         QUuid id;
         if (auto* cur = m_tree->currentItem()) {
@@ -153,6 +154,16 @@ TimelinePane::TimelinePane(MainWindow* mw, QWidget* parent) : QWidget(parent), m
     });
     connect(aTextAfter, &QAction::triggered, this, [this, currentRowId]() {
         m_mw->addTextClip(currentRowId(), MainWindow::InsertPosition::After);
+    });
+    connect(aRemoveSelected, &QAction::triggered, this, [this, currentRowId]() {
+        QUuid id = currentRowId();
+        if (!id.isNull()) m_mw->removeItem(id);
+    });
+    connect(aRemoveUnused, &QAction::triggered, this, [this]() {
+        m_mw->removeUnusedItems();
+    });
+    connect(aRemoveAll, &QAction::triggered, this, [this]() {
+        m_mw->removeAllItems();
     });
 
     refresh();

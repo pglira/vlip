@@ -1,4 +1,5 @@
 #include "MainWindow.hpp"
+#include <algorithm>
 #include "TimelinePane.hpp"
 #include "PropertiesPane.hpp"
 #include "PreviewPane.hpp"
@@ -419,6 +420,33 @@ void MainWindow::removeItem(const QUuid& id) {
         emit selectionChanged(m_selectedId);
     }
     emit projectChanged();
+}
+
+void MainWindow::removeUnusedItems() {
+    auto& items = m_project.items;
+    auto newEnd = std::remove_if(items.begin(), items.end(),
+        [](const Item& it) { return !it.common().used; });
+    const int removed = int(items.end() - newEnd);
+    if (removed == 0) return;
+    items.erase(newEnd, items.end());
+    if (!m_selectedId.isNull() && !findItem(m_selectedId)) {
+        m_selectedId = QUuid();
+        emit selectionChanged(m_selectedId);
+    }
+    onProjectMutated(false);
+    emit message(tr("Removed %1 unused item(s).").arg(removed));
+}
+
+void MainWindow::removeAllItems() {
+    if (m_project.items.isEmpty()) return;
+    const int n = m_project.items.size();
+    m_project.items.clear();
+    if (!m_selectedId.isNull()) {
+        m_selectedId = QUuid();
+        emit selectionChanged(m_selectedId);
+    }
+    onProjectMutated(false);
+    emit message(tr("Removed %1 item(s).").arg(n));
 }
 
 void MainWindow::setSelected(const QUuid& id) {

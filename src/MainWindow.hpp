@@ -34,6 +34,10 @@ public:
     // and re-sort when needed.
     void importPaths(const QStringList& paths);
     void removeItem(const QUuid& id);
+    // Bulk removals — wired to the timeline pane's Remove submenu.
+    // Both clear the selection if the previously-selected item is gone.
+    void removeUnusedItems();
+    void removeAllItems();
     void setSelected(const QUuid& id);
     void setUsed(const QUuid& id, bool used);
     void setSubtitle(const QUuid& id, const QString& s);
