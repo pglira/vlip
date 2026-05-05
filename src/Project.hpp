@@ -93,7 +93,7 @@ enum class Corner { TopLeft, TopRight, BottomLeft, BottomRight };
 
 struct SubtitleStyle {
     QString fontFamily;                  // empty → first available DejaVu / system fallback
-    int fontSizePx = 0;                  // 0 → auto (canvas-relative)
+    int fontSizePx = 49;                 // sized for 1080p; user adjusts per project
     QColor fontColor   = QColor(255, 255, 255, 255);
     QColor bgColor     = QColor(0,   0,   0,   140);  // alpha controls box opacity
     QColor outlineColor    = QColor(0, 0, 0, 255);
@@ -106,7 +106,7 @@ struct SubtitleStyle {
 
 struct TextClipStyle {
     QString fontFamily;
-    int fontSizePx = 0;                  // 0 → auto (canvas-relative)
+    int fontSizePx = 90;                 // sized for 1080p; user adjusts per project
     QColor fontColor = QColor(255, 255, 255, 255);
     QColor outlineColor    = QColor(0, 0, 0, 255);
     int    outlineWidthPx  = 0;          // 0 = no outline
@@ -122,7 +122,7 @@ struct TextClipStyle {
 struct DatestampStyle {
     bool active = true;
     QString fontFamily;
-    int fontSizePx = 0;                  // 0 → auto (canvas-relative)
+    int fontSizePx = 30;                 // sized for 1080p; user adjusts per project
     Corner corner = Corner::BottomRight;
     int marginPx = 20;
     // QDateTime format pattern (yyyy / MM / dd / HH / mm / ss …). Lets

@@ -103,7 +103,7 @@ void TextClipPreviewWidget::requestOverlay() {
     m_overlayKey = {};
     if (!m_overlayRenderer || m_text.trimmed().isEmpty()) return;
 
-    QString expr = textClipDrawText(m_text, m_canvasH, m_style, previewTextfileDir());
+    QString expr = textClipDrawText(m_text, m_style, previewTextfileDir());
     if (expr.isEmpty()) return;
     m_overlayKey = TextOverlayRenderer::Key{expr, m_canvasW, m_canvasH};
     m_overlay = m_overlayRenderer->getOrRequest(m_overlayKey);

@@ -12,6 +12,16 @@ namespace vlip {
 
 namespace {
 
+// Read `font_size_px` from a style JSON blob. Legacy projects stored 0
+// to mean "auto, canvas-relative" — the auto path is gone, so a missing
+// or zero entry falls back to the struct's default size.
+template <typename Style>
+int loadFontSizePx(const QJsonObject& o) {
+    const int defaultPx = Style{}.fontSizePx;
+    const int loaded = o.value("font_size_px").toInt(defaultPx);
+    return loaded > 0 ? loaded : defaultPx;
+}
+
 QJsonObject toJson(const QRectF& r) {
     QJsonObject o;
     o["x"] = r.x();
@@ -162,7 +172,7 @@ QJsonObject toJson(const SubtitleStyle& s) {
 SubtitleStyle subtitleFromJson(const QJsonObject& o) {
     SubtitleStyle s;
     s.fontFamily = o.value("font_family").toString();
-    s.fontSizePx = o.value("font_size_px").toInt(0);
+    s.fontSizePx = loadFontSizePx<SubtitleStyle>(o);
     s.fontColor = colorFromString(o.value("font_color").toString(), s.fontColor);
     s.bgColor   = colorFromString(o.value("bg_color").toString(), s.bgColor);
     s.outlineColor   = colorFromString(o.value("outline_color").toString(), s.outlineColor);
@@ -202,7 +212,7 @@ QJsonObject toJson(const TextClipStyle& s) {
 TextClipStyle textClipFromJson(const QJsonObject& o) {
     TextClipStyle s;
     s.fontFamily = o.value("font_family").toString();
-    s.fontSizePx = o.value("font_size_px").toInt(0);
+    s.fontSizePx = loadFontSizePx<TextClipStyle>(o);
     s.fontColor = colorFromString(o.value("font_color").toString(), s.fontColor);
     s.outlineColor   = colorFromString(o.value("outline_color").toString(), s.outlineColor);
     s.outlineWidthPx = o.value("outline_width_px").toInt(0);
@@ -243,7 +253,7 @@ DatestampStyle datestampFromJson(const QJsonObject& o) {
     DatestampStyle d;
     d.active = o.value("active").toBool(true);
     d.fontFamily = o.value("font_family").toString();
-    d.fontSizePx = o.value("font_size_px").toInt(0);
+    d.fontSizePx = loadFontSizePx<DatestampStyle>(o);
     d.corner = cornerFromString(o.value("corner").toString("bottom_right"));
     d.marginPx = o.value("margin_px").toInt(20);
     d.format = o.value("format").toString(d.format);

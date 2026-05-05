@@ -233,21 +233,20 @@ QString cropFilterFor(const ImageClip& img) {
 // canvas filters; empty when the clip has nothing to draw.
 QString overlayDrawtextFor(const Item& it, const Project& p, double dur,
                            const QString& textWorkDir) {
-    const int H = p.canvas.height;
     QString out;
     if (it.kind == ItemKind::TextClip) {
-        const QString dt = textClipDrawText(it.textClip.text, H,
+        const QString dt = textClipDrawText(it.textClip.text,
                                             p.defaults.textClip, textWorkDir);
         if (!dt.isEmpty()) out += "," + dt;
         return out;
     }
-    const QString dt = subtitleDrawText(it.common().subtitle, H,
+    const QString dt = subtitleDrawText(it.common().subtitle,
                                         p.defaults.subtitle, dur, true, textWorkDir);
     if (!dt.isEmpty()) out += "," + dt;
     const QString ds = datestampDrawText(
         formatDatestamp(it.common().timestamp,
                         p.defaults.timeZone, p.defaults.datestamp.format),
-        H, p.defaults.datestamp, textWorkDir);
+        p.defaults.datestamp, textWorkDir);
     if (!ds.isEmpty()) out += "," + ds;
     return out;
 }

@@ -40,7 +40,7 @@ QString previewTextfileDir();
 
 // Drawtext expression for a text clip. Returns "" for blank text or
 // I/O failure.
-QString textClipDrawText(const QString& text, int canvasH,
+QString textClipDrawText(const QString& text,
                          const TextClipStyle& style,
                          const QString& textWorkDir);
 
@@ -49,7 +49,7 @@ QString textClipDrawText(const QString& text, int canvasH,
 // (`visibleSecs`) can be applied; the preview passes 0 (or any
 // value) and `includeVisibilityWindow=false` for an always-on
 // overlay.
-QString subtitleDrawText(const QString& subtitle, int canvasH,
+QString subtitleDrawText(const QString& subtitle,
                          const SubtitleStyle& style,
                          double segmentDur,
                          bool includeVisibilityWindow,
@@ -58,7 +58,7 @@ QString subtitleDrawText(const QString& subtitle, int canvasH,
 // Drawtext expression for the corner date stamp. Returns "" if the
 // style is disabled, the text is empty, or the textfile can't be
 // written.
-QString datestampDrawText(const QString& text, int canvasH,
+QString datestampDrawText(const QString& text,
                           const DatestampStyle& s,
                           const QString& textWorkDir);
 

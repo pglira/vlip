@@ -98,15 +98,14 @@ QString formatDatestamp(const QDateTime& utc, const QByteArray& tzId,
     return t.toString(pattern);
 }
 
-QString textClipDrawText(const QString& text, int canvasH,
+QString textClipDrawText(const QString& text,
                          const TextClipStyle& style,
                          const QString& textWorkDir) {
     if (text.trimmed().isEmpty()) return {};
     const QString textPath = writeTextfile(text, textWorkDir);
     if (textPath.isEmpty()) return {};
     QString font = resolveFontFile(style.fontFamily);
-    int fontSize = style.fontSizePx > 0 ? style.fontSizePx
-                                        : qMax(20, canvasH / 12);
+    const int fontSize = style.fontSizePx;
     QString chain = "drawtext=";
     if (!font.isEmpty()) {
         chain += QString("fontfile='%1':").arg(font);
@@ -129,7 +128,7 @@ QString textClipDrawText(const QString& text, int canvasH,
     return chain;
 }
 
-QString subtitleDrawText(const QString& subtitle, int canvasH,
+QString subtitleDrawText(const QString& subtitle,
                          const SubtitleStyle& style, double segmentDur,
                          bool includeVisibilityWindow,
                          const QString& textWorkDir) {
@@ -137,8 +136,7 @@ QString subtitleDrawText(const QString& subtitle, int canvasH,
     const QString textPath = writeTextfile(subtitle, textWorkDir);
     if (textPath.isEmpty()) return {};
     QString font = resolveFontFile(style.fontFamily);
-    int fontSize = style.fontSizePx > 0 ? style.fontSizePx
-                                        : qMax(20, canvasH / 22);
+    const int fontSize = style.fontSizePx;
     QString chain = "drawtext=";
     if (!font.isEmpty()) {
         chain += QString("fontfile='%1':").arg(font);
@@ -172,14 +170,14 @@ QString subtitleDrawText(const QString& subtitle, int canvasH,
     return chain;
 }
 
-QString datestampDrawText(const QString& text, int canvasH,
+QString datestampDrawText(const QString& text,
                           const DatestampStyle& s,
                           const QString& textWorkDir) {
     if (!s.active || text.isEmpty()) return {};
     const QString textPath = writeTextfile(text, textWorkDir);
     if (textPath.isEmpty()) return {};
     QString font = resolveFontFile(s.fontFamily);
-    int fontSize = s.fontSizePx > 0 ? s.fontSizePx : qMax(14, canvasH / 36);
+    const int fontSize = s.fontSizePx;
     QString chain = "drawtext=";
     if (!font.isEmpty()) {
         chain += QString("fontfile='%1':").arg(font);

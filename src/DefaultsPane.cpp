@@ -178,9 +178,8 @@ DefaultsPane::DefaultsPane(MainWindow* mw, QWidget* parent)
     m_fontFamily = new QFontComboBox(subs);
     sLay->addRow(tr("Font:"), m_fontFamily);
     m_fontSize = new QSpinBox(subs);
-    m_fontSize->setRange(0, 400);
+    m_fontSize->setRange(8, 400);
     m_fontSize->setSuffix(" px");
-    m_fontSize->setSpecialValueText(tr("auto (canvas-relative)"));
     sLay->addRow(tr("Font size:"), m_fontSize);
     m_fontColor = new QPushButton(tr("Pick…"), subs);
     sLay->addRow(tr("Text color:"), m_fontColor);
@@ -257,9 +256,8 @@ DefaultsPane::DefaultsPane(MainWindow* mw, QWidget* parent)
     m_textClipFont = new QFontComboBox(this);
     tcLay->addRow(tr("Font:"), m_textClipFont);
     m_textClipFontSize = new QSpinBox(this);
-    m_textClipFontSize->setRange(0, 400);
+    m_textClipFontSize->setRange(8, 400);
     m_textClipFontSize->setSuffix(" px");
-    m_textClipFontSize->setSpecialValueText(tr("auto (canvas-relative)"));
     tcLay->addRow(tr("Font size:"), m_textClipFontSize);
     m_textClipFontColor = new QPushButton(tr("Pick…"), this);
     tcLay->addRow(tr("Text color:"), m_textClipFontColor);
@@ -326,9 +324,8 @@ DefaultsPane::DefaultsPane(MainWindow* mw, QWidget* parent)
     m_dsFont = new QFontComboBox(ds);
     dsLay->addRow(tr("Font:"), m_dsFont);
     m_dsFontSize = new QSpinBox(ds);
-    m_dsFontSize->setRange(0, 400);
+    m_dsFontSize->setRange(8, 400);
     m_dsFontSize->setSuffix(" px");
-    m_dsFontSize->setSpecialValueText(tr("auto (canvas-relative)"));
     dsLay->addRow(tr("Font size:"), m_dsFontSize);
     m_dsCorner = new QComboBox(ds);
     m_dsCorner->addItem(tr("Top-left"),     int(Corner::TopLeft));

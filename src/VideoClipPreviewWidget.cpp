@@ -449,7 +449,7 @@ void VideoClipPreviewWidget::requestSubtitleOverlay() {
     m_subtitleKey = {};
     m_subOverlay->setCanvasSize(m_projectW, m_projectH);
     if (m_overlayRenderer && !m_subtitleText.trimmed().isEmpty()) {
-        QString expr = subtitleDrawText(m_subtitleText, m_projectH, m_subtitleStyle,
+        QString expr = subtitleDrawText(m_subtitleText, m_subtitleStyle,
                                         0.0, false, previewTextfileDir());
         if (!expr.isEmpty()) {
             m_subtitleKey = TextOverlayRenderer::Key{expr, m_projectW, m_projectH};
@@ -465,7 +465,7 @@ void VideoClipPreviewWidget::requestDatestampOverlay() {
     m_datestampKey = {};
     m_subOverlay->setCanvasSize(m_projectW, m_projectH);
     if (m_overlayRenderer && !m_datestampText.isEmpty() && m_datestampStyle.active) {
-        QString expr = datestampDrawText(m_datestampText, m_projectH, m_datestampStyle,
+        QString expr = datestampDrawText(m_datestampText, m_datestampStyle,
                                          previewTextfileDir());
         if (!expr.isEmpty()) {
             m_datestampKey = TextOverlayRenderer::Key{expr, m_projectW, m_projectH};
