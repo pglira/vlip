@@ -309,6 +309,21 @@ void MainWindow::setupMenus() {
                                  "edit/lastTextClipBulkDuration", 5.0);
         if (v) applyTextClipDurationToAll(*v);
     });
+    auto* aTextApplyBg = textMenu->addAction(tr("Apply &background image to all items…"));
+    connect(aTextApplyBg, &QAction::triggered, this, [this]() {
+        QSettings s("vlip", "vlip");
+        const QString seed = s.value("edit/lastTextClipBulkBgDir").toString();
+        const QString path = QFileDialog::getOpenFileName(
+            this, tr("Choose background image for all text clips"), seed,
+            tr("Images (*.jpg *.jpeg *.png *.heic *.heif *.webp *.tif *.tiff *.bmp);;All files (*.*)"));
+        if (path.isEmpty()) return;
+        s.setValue("edit/lastTextClipBulkBgDir", QFileInfo(path).absolutePath());
+        applyTextClipBackgroundToAll(path);
+    });
+    auto* aTextClearBg = textMenu->addAction(tr("Clear background image on all items"));
+    connect(aTextClearBg, &QAction::triggered, this, [this]() {
+        applyTextClipBackgroundToAll(QString());
+    });
     auto* aDailyDates = textMenu->addAction(tr("Insert &date text clip for each day"));
     aDailyDates->setToolTip(tr(
         "For each calendar day with image / video clips, insert a text clip\n"
@@ -559,6 +574,11 @@ QUuid MainWindow::addTextClip(const QUuid& referenceId, InsertPosition pos) {
 
 void MainWindow::applyTextClipDurationToAll(double secs) {
     m_project.applyTextClipDurationAll(secs);
+    onProjectMutated(false);
+}
+
+void MainWindow::applyTextClipBackgroundToAll(const QString& path) {
+    m_project.applyTextClipBackgroundAll(path);
     onProjectMutated(false);
 }
 

@@ -57,6 +57,7 @@ public:
 
     void applyImageClipDurationToAll(double secs);
     void applyTextClipDurationToAll(double secs);
+    void applyTextClipBackgroundToAll(const QString& path);
 
     // Background-music playlist mutations. Each emits projectChanged()
     // so the Project settings pane re-renders the list.

@@ -51,4 +51,12 @@ void Project::applyTextClipDurationAll(double secs) {
     }
 }
 
+void Project::applyTextClipBackgroundAll(const QString& path) {
+    for (auto& it : items) {
+        if (it.kind == ItemKind::TextClip) {
+            it.textClip.backgroundPath = path;
+        }
+    }
+}
+
 } // namespace vlip

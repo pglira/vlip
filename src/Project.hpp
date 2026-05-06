@@ -175,6 +175,7 @@ struct Project {
     int indexOfId(const QUuid& id) const;
     void applyImageClipDurationAll(double secs);
     void applyTextClipDurationAll(double secs);
+    void applyTextClipBackgroundAll(const QString& path);
 };
 
 } // namespace vlip
