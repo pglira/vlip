@@ -2,12 +2,19 @@
 
 #include <QApplication>
 #include <QIcon>
+#include <QImageReader>
 
 int main(int argc, char** argv) {
     QApplication app(argc, argv);
     app.setApplicationName("vlip");
     app.setOrganizationName("vlip");
     app.setWindowIcon(QIcon(":/vlip.svg"));
+
+    // Qt 6 caps QImageReader allocations at 128 MB by default, which
+    // silently rejects ~30 MP+ photos (e.g. iPhone panoramas at ~10800×3900
+    // need ~161 MB as ARGB32 — `read()` just returns a null QImage). Lift
+    // the cap to 4 GB so phone panoramas decode.
+    QImageReader::setAllocationLimit(4096);
 
     vlip::MainWindow w;
     w.show();
