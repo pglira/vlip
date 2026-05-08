@@ -47,6 +47,35 @@ QPixmap textClipThumbnail() {
     return cached;
 }
 
+// Paint a small bottom-right play-triangle badge on `pm` so video clips
+// are visually distinct from image clips at a glance. Drawn over a dark
+// semi-transparent disc with a thin white outline so it stays legible on
+// both bright and dark thumbnails.
+void overlayPlayBadge(QPixmap& pm) {
+    if (pm.isNull()) return;
+    const int sz = 18;
+    const int margin = 3;
+    QPainter p(&pm);
+    p.setRenderHint(QPainter::Antialiasing, true);
+    QRectF disc(pm.width() - sz - margin, pm.height() - sz - margin, sz, sz);
+    p.setPen(QPen(QColor(255, 255, 255, 220), 1.0));
+    p.setBrush(QColor(0, 0, 0, 180));
+    p.drawEllipse(disc);
+    // Slightly right-biased triangle so the visual centre matches the
+    // disc's centre (the eye reads pointed shapes as offset toward their tip).
+    QPolygonF tri;
+    const qreal cx = disc.center().x() + 1.0;
+    const qreal cy = disc.center().y();
+    const qreal halfW = 4.5;
+    const qreal halfH = 5.5;
+    tri << QPointF(cx - halfW, cy - halfH)
+        << QPointF(cx - halfW, cy + halfH)
+        << QPointF(cx + halfW, cy);
+    p.setPen(Qt::NoPen);
+    p.setBrush(Qt::white);
+    p.drawPolygon(tri);
+}
+
 QString textClipDisplayName(const QString& text) {
     QString s = text.simplified();
     if (s.isEmpty()) return QObject::tr("(text clip)");
@@ -179,22 +208,29 @@ QIcon TimelinePane::iconForItem(const Item& it) {
         m_iconCache.insert(kKey, icon);
         return icon;
     }
-    const QString& key = it.common().thumbPath;
-    if (key.isEmpty()) return {};
-    auto cached = m_iconCache.constFind(key);
+    const QString& thumbPath = it.common().thumbPath;
+    if (thumbPath.isEmpty()) return {};
+    // Prefix the cache key with the kind so a thumbPath shared between
+    // an image and a video import (unlikely but possible) doesn't return
+    // the wrong overlay state.
+    const bool isVideo = it.kind == ItemKind::VideoClip;
+    const QString cacheKey = (isVideo ? QStringLiteral("v:") : QStringLiteral("i:"))
+                             + thumbPath;
+    auto cached = m_iconCache.constFind(cacheKey);
     if (cached != m_iconCache.constEnd()) return *cached;
-    QPixmap pm(key);
+    QPixmap pm(thumbPath);
     if (pm.isNull()) {
         // Cache the empty result too so we don't keep retrying broken paths.
-        m_iconCache.insert(key, QIcon());
+        m_iconCache.insert(cacheKey, QIcon());
         return {};
     }
     pm = pm.scaledToHeight(kThumbHeight, Qt::SmoothTransformation);
     if (pm.width() > kThumbMaxWidth) {
         pm = pm.scaledToWidth(kThumbMaxWidth, Qt::SmoothTransformation);
     }
+    if (isVideo) overlayPlayBadge(pm);
     QIcon icon(pm);
-    m_iconCache.insert(key, icon);
+    m_iconCache.insert(cacheKey, icon);
     return icon;
 }
 
