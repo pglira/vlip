@@ -48,27 +48,29 @@ between clips, and per-clip adjustments.
 
 ## Keyboard shortcuts
 
-| Shortcut            | Action                              |
-| ------------------- | ----------------------------------- |
-| `Ctrl+↓` / `Ctrl+J` | Next clip                           |
-| `Ctrl+↑` / `Ctrl+K` | Previous clip                       |
-| `Ctrl+Home`         | First clip                          |
-| `Ctrl+End`          | Last clip                           |
-| `Ctrl+Space`        | Toggle "used" on selected clip      |
-| `Delete`            | Remove selected clip                |
-| `Ctrl+T`            | Insert text clip after selected     |
-| `Ctrl+Shift+T`      | Insert text clip before selected    |
-| `Ctrl+H`            | Toggle "Hide unused"                |
-| `F2`                | Edit subtitle / text-clip text      |
-| `Ctrl+Shift+C`      | Open crop tool (image-clip preview) |
-| `Ctrl+P`            | Toggle project settings             |
-| `Space`             | Play / pause (video-clip preview)   |
-| `Enter`             | Commit subtitle / text-clip edit    |
-| `Ctrl+I`            | Import media…                       |
-| `Ctrl+R`            | Render…                             |
-| `Ctrl+N`            | New project                         |
-| `Ctrl+O` / `Ctrl+S` | Open / save project                 |
-| `Ctrl+Shift+S`      | Save project as…                    |
+| Shortcut              | Action                                 |
+| --------------------- | -------------------------------------- |
+| `Ctrl+↓` / `Ctrl+J`   | Next clip                              |
+| `Ctrl+↑` / `Ctrl+K`   | Previous clip                          |
+| `Ctrl+Home`           | First clip                             |
+| `Ctrl+End`            | Last clip                              |
+| `Ctrl+Space`          | Toggle "used" on selected clip         |
+| `Delete`              | Remove selected clip                   |
+| `Ctrl+T`              | Insert text clip after selected        |
+| `Ctrl+Shift+T`        | Insert text clip before selected       |
+| `Ctrl+H`              | Toggle "Hide unused"                   |
+| `F2`                  | Edit subtitle / text-clip text         |
+| `Ctrl+Shift+C`        | Open crop tool (image-clip preview)    |
+| `Ctrl+P`              | Toggle project settings                |
+| `Space`               | Play / pause (video-clip preview)      |
+| `,` / `.`             | Previous / next frame (video preview)  |
+| `Shift+,` / `Shift+.` | Step −1 / +1 second (video preview)    |
+| `Enter`               | Commit subtitle / text-clip edit       |
+| `Ctrl+I`              | Import media…                          |
+| `Ctrl+R`              | Render…                                |
+| `Ctrl+N`              | New project                            |
+| `Ctrl+O` / `Ctrl+S`   | Open / save project                    |
+| `Ctrl+Shift+S`        | Save project as…                       |
 
 ## Install and run
 

@@ -116,6 +116,14 @@ private:
     void requestDatestampOverlay();
     void positionSubtitleOverlay();
     void refreshOverlayVisibility();
+    // Source video fps. Reads QMediaMetaData::VideoFrameRate when the
+    // current media has reported it; falls back to the project canvas
+    // fps so frame-stepping still does something sensible during the
+    // brief window before metadata arrives.
+    double currentFps() const;
+    // Pause if playing (so the user lands on the frame they expect),
+    // then setPosition(clamp(currentMs + deltaMs, 0, durationMs)).
+    void seekByMs(qint64 deltaMs);
 
     // Set on setItem(); applied as setPosition() once the media reports
     // BufferedMedia so a later Play click starts from the trim-start.
@@ -134,6 +142,7 @@ private:
     QLabel* m_dur;
     QLabel* m_trim;
     QPushButton *m_btnPlay, *m_btnHome, *m_btnEnd;
+    QPushButton *m_btnPrevFrame, *m_btnNextFrame;
     QPushButton *m_btnGoStart, *m_btnGoEnd;
     QPushButton *m_btnSetStart, *m_btnSetEnd;
     qint64 m_durationMs = 0;

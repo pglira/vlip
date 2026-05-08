@@ -7,6 +7,7 @@
 #include <QLabel>
 #include <QPushButton>
 #include <QAudioOutput>
+#include <QMediaMetaData>
 #include <QVideoWidget>
 #include <QUrl>
 #include <QPalette>
@@ -256,8 +257,12 @@ VideoClipPreviewWidget::VideoClipPreviewWidget(MainWindow* mw,
     QStyle* st = style();
     m_btnHome = new QPushButton(st->standardIcon(QStyle::SP_MediaSkipBackward), QString(), this);
     m_btnHome->setToolTip(tr("Jump to source start"));
+    m_btnPrevFrame = new QPushButton(st->standardIcon(QStyle::SP_MediaSeekBackward), QString(), this);
+    m_btnPrevFrame->setToolTip(tr("Previous frame  (,)\nShift+,  for −1 second"));
     m_btnPlay = new QPushButton(st->standardIcon(QStyle::SP_MediaPlay), QString(), this);
     m_btnPlay->setToolTip(tr("Play / pause"));
+    m_btnNextFrame = new QPushButton(st->standardIcon(QStyle::SP_MediaSeekForward), QString(), this);
+    m_btnNextFrame->setToolTip(tr("Next frame  (.)\nShift+.  for +1 second"));
     m_btnEnd  = new QPushButton(st->standardIcon(QStyle::SP_MediaSkipForward), QString(), this);
     m_btnEnd->setToolTip(tr("Jump to source end"));
     m_btnGoStart = new QPushButton(tr("Clip start"), this);
@@ -271,7 +276,9 @@ VideoClipPreviewWidget::VideoClipPreviewWidget(MainWindow* mw,
     m_trim = new QLabel(tr("(no video clip selected)"), this);
 
     row->addWidget(m_btnHome);
+    row->addWidget(m_btnPrevFrame);
     row->addWidget(m_btnPlay);
+    row->addWidget(m_btnNextFrame);
     row->addWidget(m_btnEnd);
     row->addWidget(m_pos);
     row->addWidget(m_dur);
@@ -307,6 +314,36 @@ VideoClipPreviewWidget::VideoClipPreviewWidget(MainWindow* mw,
         if (!isVisible()) return;
         togglePlay();
     });
+    auto stepFrame = [this](int frames) {
+        if (m_loadedPath.isEmpty()) return;
+        const double fps = currentFps();
+        const qint64 deltaMs = qint64(std::llround(frames * 1000.0 / std::max(1.0, fps)));
+        seekByMs(deltaMs);
+    };
+    auto stepSeconds = [this](int seconds) {
+        if (m_loadedPath.isEmpty()) return;
+        seekByMs(qint64(seconds) * 1000);
+    };
+    connect(m_btnPrevFrame, &QPushButton::clicked, this, [stepFrame]() { stepFrame(-1); });
+    connect(m_btnNextFrame, &QPushButton::clicked, this, [stepFrame]() { stepFrame(+1); });
+
+    // Frame / second stepping shortcuts. Comma & period match the
+    // industry-standard editor mapping (Final Cut / Premiere / DaVinci),
+    // and they don't fight with Left/Right used inside focused QSpinBoxes.
+    // Window-scope + isVisible() guard mirrors the existing Space binding.
+    auto bindStep = [this](const QKeySequence& seq, std::function<void()> fn) {
+        auto* sc = new QShortcut(seq, this);
+        sc->setContext(Qt::WindowShortcut);
+        connect(sc, &QShortcut::activated, this, [this, fn]() {
+            if (!isVisible()) return;
+            fn();
+        });
+    };
+    bindStep(QKeySequence(Qt::Key_Comma),                  [stepFrame]()   { stepFrame(-1); });
+    bindStep(QKeySequence(Qt::Key_Period),                 [stepFrame]()   { stepFrame(+1); });
+    bindStep(QKeySequence(Qt::SHIFT | Qt::Key_Comma),      [stepSeconds]() { stepSeconds(-1); });
+    bindStep(QKeySequence(Qt::SHIFT | Qt::Key_Period),     [stepSeconds]() { stepSeconds(+1); });
+
     connect(m_btnHome, &QPushButton::clicked, this, [this]() {
         m_player->setPosition(0);
     });
@@ -529,6 +566,30 @@ void VideoClipPreviewWidget::onMediaStatusChanged(QMediaPlayer::MediaStatus s) {
 
 void VideoClipPreviewWidget::onError(QMediaPlayer::Error, const QString& msg) {
     qWarning("QMediaPlayer error: %s", qPrintable(msg));
+}
+
+double VideoClipPreviewWidget::currentFps() const {
+    const QVariant v = m_player->metaData().value(QMediaMetaData::VideoFrameRate);
+    bool ok = false;
+    const double fps = v.toDouble(&ok);
+    if (ok && fps > 0.5 && fps < 1000.0) return fps;
+    // Source metadata not yet known (or bogus) — fall back to canvas fps
+    // so the step still moves a sensible amount.
+    const int canvasFps = m_mw ? m_mw->project().canvas.fps : 30;
+    return canvasFps > 0 ? double(canvasFps) : 30.0;
+}
+
+void VideoClipPreviewWidget::seekByMs(qint64 deltaMs) {
+    if (m_loadedPath.isEmpty()) return;
+    if (m_player->playbackState() == QMediaPlayer::PlayingState) {
+        m_player->pause();
+    }
+    const qint64 cur = m_player->position();
+    const qint64 maxMs = m_durationMs > 0 ? m_durationMs : cur;
+    qint64 target = cur + deltaMs;
+    if (target < 0) target = 0;
+    if (maxMs > 0 && target > maxMs) target = maxMs;
+    m_player->setPosition(target);
 }
 
 void VideoClipPreviewWidget::setPlayButtonText() {
