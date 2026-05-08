@@ -47,6 +47,13 @@ int main(int argc, char** argv) {
         if (r.item.kind == vlip::ItemKind::ImageClip) {
             r.item.imageClip.durationSecs = 0.5;
             r.item.imageClip.common.subtitle = "img: " + fi.fileName();
+            // Rotate the first imported image by a small angle so the
+            // smoke test exercises the rotate filter branch.
+            static bool rotated = false;
+            if (!rotated) {
+                r.item.imageClip.rotationDegrees = 3.0;
+                rotated = true;
+            }
         } else {
             r.item.videoClip.startSecs = 0.0;
             r.item.videoClip.endSecs = std::min(1.0, r.item.videoClip.sourceDurationSecs);

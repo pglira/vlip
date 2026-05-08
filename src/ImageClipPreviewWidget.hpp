@@ -13,8 +13,10 @@
 
 class QFrame;
 class QComboBox;
+class QDoubleSpinBox;
 class QPushButton;
 class QShortcut;
+class QSlider;
 
 namespace vlip {
 
@@ -26,8 +28,14 @@ public:
     explicit ImageClipPreviewWidget(TextOverlayRenderer* overlayRenderer,
                                     QWidget* parent = nullptr);
     void setImage(const QString& path);
-    // Persisted crop applied to the displayed image (normalized 0..1).
+    // Persisted crop applied to the displayed image, normalized 0..1 over
+    // the *rotated* bbox.
     void setCrop(const std::optional<QRectF>& crop);
+    // Persisted rotation in degrees, clockwise. Re-applied to the source
+    // before crop/letterbox. Outside crop mode this drives the displayed
+    // image directly; in crop mode, the staged value from the rotation
+    // slider supersedes it until the user Applies.
+    void setRotation(double degrees);
     // Project canvas dimensions — used to label and apply the "Project"
     // aspect-ratio preset in crop mode. Safe to call any time.
     void setProjectCanvas(int width, int height);
@@ -45,8 +53,11 @@ public:
     bool inCropMode() const { return m_cropping; }
 
 signals:
-    // Emitted when the user clicks Apply or Reset.
+    // Emitted when the user clicks Apply or Reset. Both crop and rotation
+    // values reflect the user's final pick — receivers should persist
+    // both, not just crop.
     void cropApplied(const std::optional<QRectF>& normalized);
+    void rotationApplied(double degrees);
     void cropModeExited();
 
 protected:
@@ -61,6 +72,22 @@ private:
     void exitCropMode();
     void requestSubtitleOverlay();
     void requestDatestampOverlay();
+    // Active rotation in degrees: staged value while in crop mode, the
+    // persisted value otherwise. Drives both display and the crop
+    // overlay's bbox.
+    double activeRotation() const;
+    // Source image rotated by activeRotation(), painted into its bbox.
+    // Empty / passthrough at rotation == 0. Rebuilt lazily when the angle
+    // changes; centralises caching for paintEvent and imagePaintRect.
+    const QImage& effectiveImage() const;
+    void invalidateRotatedCache();
+    // Push current slider/spinbox value into staged rotation, refresh
+    // overlay geometry, repaint. No-op outside crop mode.
+    void onStagedRotationChanged(double degrees);
+    // Auto-fit: shrink the crop overlay rect to the largest axis-aligned
+    // rectangle inscribed in the rotated source, honouring the current
+    // aspect lock.
+    void autoFitCrop();
 
     QPointer<TextOverlayRenderer> m_overlayRenderer;
     QString m_path;
@@ -68,6 +95,15 @@ private:
     std::optional<QRectF> m_crop;
     int m_projectW = 1920;
     int m_projectH = 1080;
+    double m_rotationDegrees = 0.0;
+    // Staged rotation while in crop mode; ignored otherwise.
+    double m_stagedRotation = 0.0;
+
+    // Rotated-source cache. Keyed implicitly on (m_orig.cacheKey(),
+    // m_rotatedAngle); rebuilt on demand from effectiveImage().
+    mutable QImage m_rotated;
+    mutable double m_rotatedAngle = 0.0;
+    mutable qint64 m_rotatedSourceKey = 0;
 
     bool m_cropping = false;
 
@@ -75,6 +111,12 @@ private:
     CropOverlay* m_overlay = nullptr;
     QFrame* m_cropBar = nullptr;
     QComboBox* m_aspect = nullptr;
+    QSlider* m_rotSlider = nullptr;
+    QDoubleSpinBox* m_rotSpin = nullptr;
+    QPushButton* m_rotMinus90 = nullptr;
+    QPushButton* m_rotPlus90 = nullptr;
+    QPushButton* m_rotZero = nullptr;
+    QPushButton* m_btnAutoFit = nullptr;
     QPushButton* m_btnApply = nullptr;
     QPushButton* m_btnReset = nullptr;
     QPushButton* m_btnCancel = nullptr;

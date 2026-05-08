@@ -270,18 +270,54 @@ QString hdrToSdrFilters() {
         "format=yuv420p,");
 }
 
-// Optional crop prefix for an image clip: empty when the clip has no
-// crop set or the source dimensions aren't known. Returned with a
-// trailing comma so it slots in before the canvas-conform filters.
-QString cropFilterFor(const ImageClip& img) {
-    if (!img.crop || img.sourceWidth <= 0 || img.sourceHeight <= 0) return {};
-    const QRectF& r = *img.crop;
-    const int sw = img.sourceWidth, sh = img.sourceHeight;
-    const int cx = std::clamp(int(std::round(r.x() * sw)), 0, sw - 1);
-    const int cy = std::clamp(int(std::round(r.y() * sh)), 0, sh - 1);
-    const int cw = std::clamp(int(std::round(r.width() * sw)), 1, sw - cx);
-    const int ch = std::clamp(int(std::round(r.height() * sh)), 1, sh - cy);
-    return QString("crop=%1:%2:%3:%4,").arg(cw).arg(ch).arg(cx).arg(cy);
+// Rotate + crop prefix for an image clip. Empty when neither rotation
+// nor crop is in effect. Returned with a trailing comma so it slots in
+// before the canvas-conform filters.
+//
+// Rotation runs first into an expanded bounding box (corner pixels are
+// black). The crop is normalized over that bbox, so it's still valid when
+// rotation is 0 (bbox = source). ffmpeg's `rotate` takes radians and
+// rotates clockwise for positive angle (matches QPainter::rotate, so
+// preview and render agree). `rotw(A)` / `roth(A)` are ffmpeg built-ins
+// that compute the bbox at angle A.
+//
+// Width/height/offsets are even-aligned so the eventual yuv420p chroma
+// plane stays aligned — odd-pixel crops otherwise rely on ffmpeg's
+// internal rounding, which can shift the visible window by a pixel.
+QString rotateAndCropFilterFor(const ImageClip& img) {
+    if (img.sourceWidth <= 0 || img.sourceHeight <= 0) return {};
+    const double deg = img.rotationDegrees;
+    const bool rotates = std::abs(deg) > 1e-4;
+    if (!rotates && !img.crop) return {};
+
+    const double rad = deg * M_PI / 180.0;
+    const double absCos = std::abs(std::cos(rad));
+    const double absSin = std::abs(std::sin(rad));
+    const double sw = img.sourceWidth, sh = img.sourceHeight;
+    // Rotated bbox dims, matched to ffmpeg's rotw/roth ceil semantics.
+    const int rw = int(std::ceil(sw * absCos + sh * absSin));
+    const int rh = int(std::ceil(sw * absSin + sh * absCos));
+
+    QString out;
+    if (rotates) {
+        // Pin the output size with explicit rotw/roth expressions — the
+        // default `ow=iw,oh=ih` would clip the corners.
+        out += QString("rotate=%1:c=black:ow=rotw(%1):oh=roth(%1),")
+                  .arg(rad, 0, 'f', 6);
+    }
+    if (img.crop) {
+        const QRectF& r = *img.crop;
+        int cx = std::clamp(int(std::round(r.x() * rw)), 0, rw - 1);
+        int cy = std::clamp(int(std::round(r.y() * rh)), 0, rh - 1);
+        int cw = std::clamp(int(std::round(r.width() * rw)), 1, rw - cx);
+        int ch = std::clamp(int(std::round(r.height() * rh)), 1, rh - cy);
+        cx &= ~1; cy &= ~1;
+        cw &= ~1; ch &= ~1;
+        if (cw < 2) cw = 2;
+        if (ch < 2) ch = 2;
+        out += QString("crop=%1:%2:%3:%4,").arg(cw).arg(ch).arg(cx).arg(cy);
+    }
+    return out;
 }
 
 // Per-clip drawtext overlays (subtitle + datestamp for image/video,
@@ -367,7 +403,7 @@ VideoBuild buildVideoSegments(const Project& p, const QVector<int>& usedIndices,
         const int vIdx = appendVideoInput(it, dur, W, H, FPS, args, inputIndex);
 
         QString chain = QString("[%1:v]").arg(vIdx);
-        if (it.kind == ItemKind::ImageClip) chain += cropFilterFor(it.imageClip);
+        if (it.kind == ItemKind::ImageClip) chain += rotateAndCropFilterFor(it.imageClip);
         if (it.kind == ItemKind::VideoClip && it.videoClip.isHdr) chain += hdrToSdrFilters();
         chain += canvasConformFilters(W, H, FPS);
         chain += overlayDrawtextFor(it, p, dur, textWorkDir);
@@ -476,8 +512,26 @@ QStringList Renderer::buildBatchArgs(int firstUsedIndex, int count,
     args << "-map" << "[vout]";
     // Codec params here MUST stay identical across batches so the final
     // concat-demux pass can stream-copy without re-encoding.
-    args << "-c:v" << "libx264" << "-preset" << "veryfast" << "-crf" << "20"
+    //
+    // -preset medium / -crf 18 lands on the visually-lossless side of
+    // the libx264 quality curve (CRF 18 is the customary "transparent"
+    // threshold; veryfast/CRF 20 was visibly softer than the source on
+    // high-bitrate phone HEVC). Files get larger and encode is ~3-4×
+    // slower, but the auto-batch-size logic at start() already shrinks
+    // batches at 4K so memory stays bounded.
+    //
+    // -colorspace/-color_primaries/-color_trc/-color_range write the
+    // BT.709 + TV-range tags into the H.264 SPS VUI; without them the
+    // encoded stream is colour-untagged and players guess (BT.601 vs
+    // BT.709, full vs limited), which shifts hue and contrast on
+    // QuickTime / browsers / TVs. Identical flags on every batch keep
+    // SPS bits identical so concat-demux + -c copy still works.
+    args << "-c:v" << "libx264" << "-preset" << "medium" << "-crf" << "18"
          << "-pix_fmt" << "yuv420p"
+         << "-colorspace" << "bt709"
+         << "-color_primaries" << "bt709"
+         << "-color_trc" << "bt709"
+         << "-color_range" << "tv"
          << "-r" << QString::number(FPS);
     args << "-an";                  // video-only intermediate
     args << "-f" << "matroska";     // mkv preserves PTS cleanly under concat-demux
@@ -511,8 +565,17 @@ QStringList Renderer::buildConcatArgs(const QString& outPath)
 
     args << "-filter_complex" << chains.join(";");
     args << "-map" << "0:v" << "-c:v" << "copy";   // stream-copy from concat
+    // Re-assert the colour tags on the muxer side so the MP4 colr atom
+    // matches the SPS VUI baked into the intermediates. With -c:v copy
+    // these don't re-encode anything; they only populate container-level
+    // metadata that some players (Apple's, especially) prefer to the
+    // bitstream's own tags.
+    args << "-colorspace" << "bt709"
+         << "-color_primaries" << "bt709"
+         << "-color_trc" << "bt709"
+         << "-color_range" << "tv";
     args << "-map" << audioMapLabel
-         << "-c:a" << "aac" << "-b:a" << "192k"
+         << "-c:a" << "aac" << "-b:a" << "256k"
          << "-ar" << QString::number(kSampleRate);
     // Clamp video to the planned frame count so both streams end at the
     // same instant. -frames:v works with -c:v copy (output stops after N

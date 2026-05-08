@@ -30,9 +30,14 @@ struct Common {
 struct ImageClip {
     Common common;
     double durationSecs = 4.0;
-    std::optional<QRectF> crop;     // normalized 0..1 in source pixel space
+    std::optional<QRectF> crop;     // normalized 0..1 over the *rotated* bbox
     int sourceWidth = 0;
     int sourceHeight = 0;
+    // Counter-clockwise rotation applied before the crop. The crop rect is
+    // therefore expressed in the rotated bbox's coord space (the same space
+    // shown in the preview after rotation), so existing crops remain valid
+    // when rotation is 0.
+    double rotationDegrees = 0.0;
 };
 
 struct VideoClip {

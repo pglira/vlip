@@ -27,6 +27,9 @@ between clips, and per-clip adjustments.
 - Frame-accurate video-clip trimming with audio playback.
 - Interactive image-clip cropping, with an optional aspect-ratio lock
   to match the project canvas.
+- Image-clip rotation, including ±0.1° fine adjustments for tilt fixes
+  (sea horizon, leaning buildings) and one-click "auto-fit" cropping
+  to remove the black corners after a small rotation.
 - Subtitles burned into the output, with adjustable font, size,
   colour, position, and on-screen duration.
 - Text-clip title cards between clips, with optional background image.

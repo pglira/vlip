@@ -43,6 +43,7 @@ public:
     void setSubtitle(const QUuid& id, const QString& s);
     void setImageClipDuration(const QUuid& id, double secs);
     void setImageClipCrop(const QUuid& id, const std::optional<QRectF>& rect);
+    void setImageClipRotation(const QUuid& id, double degrees);
     void setVideoClipTrim(const QUuid& id, double startSecs, double endSecs);
     void setTextClipText(const QUuid& id, const QString& text);
     void setTextClipDuration(const QUuid& id, double secs);

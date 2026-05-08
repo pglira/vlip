@@ -48,6 +48,17 @@ void PropertiesPane::buildUi() {
     m_imageClipDuration->setSuffix(" s");
     iLay->addRow(tr("Duration:"), m_imageClipDuration);
 
+    m_imageClipRotation = new QDoubleSpinBox(m_imageClipGroup);
+    m_imageClipRotation->setDecimals(1);
+    m_imageClipRotation->setSingleStep(0.1);
+    m_imageClipRotation->setRange(-180.0, 180.0);
+    m_imageClipRotation->setSuffix(QStringLiteral(" °"));
+    m_imageClipRotation->setKeyboardTracking(false);
+    m_imageClipRotation->setToolTip(tr(
+        "Rotate the image clockwise. Use the crop tool's Auto-fit\n"
+        "to remove the black corners that appear at non-90° angles."));
+    iLay->addRow(tr("Rotation:"), m_imageClipRotation);
+
     auto* cropRow = new QHBoxLayout;
     m_btnCrop = new QPushButton(tr("Crop…"), m_imageClipGroup);
     m_btnCrop->setToolTip(tr("Open the interactive crop tool  (Ctrl+Shift+C)"));
@@ -106,6 +117,11 @@ void PropertiesPane::buildUi() {
             this, [this](double v) {
         if (m_suspend) return;
         m_mw->setImageClipDuration(m_id, v);
+    });
+    connect(m_imageClipRotation, qOverload<double>(&QDoubleSpinBox::valueChanged),
+            this, [this](double v) {
+        if (m_suspend) return;
+        m_mw->setImageClipRotation(m_id, v);
     });
 
     connect(m_btnCrop, &QPushButton::clicked, this, [this]() {
@@ -185,6 +201,7 @@ void PropertiesPane::refresh() {
         case ItemKind::ImageClip:
             m_stack->setCurrentIndex(0);
             m_imageClipDuration->setValue(it->imageClip.durationSecs);
+            m_imageClipRotation->setValue(it->imageClip.rotationDegrees);
             if (it->imageClip.crop) {
                 const QRectF& r = *it->imageClip.crop;
                 m_cropLabel->setText(QString("x=%1 y=%2 w=%3 h=%4")

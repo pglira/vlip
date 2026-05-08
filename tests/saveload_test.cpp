@@ -39,6 +39,7 @@ int main(int argc, char** argv) {
         if (!r.ok) continue;
         if (r.item.kind == vlip::ItemKind::ImageClip) {
             r.item.imageClip.durationSecs = 5.0;
+            r.item.imageClip.rotationDegrees = -2.5;  // exercise rotation round-trip
         }
         r.item.common().subtitle = "test:" + fi.fileName();
         r.item.common().used = true;
@@ -119,6 +120,9 @@ int main(int argc, char** argv) {
             case vlip::ItemKind::ImageClip:
                 CHECK(qFuzzyCompare(a.imageClip.durationSecs, b.imageClip.durationSecs),
                       "image-clip durationSecs mismatch");
+                CHECK(qFuzzyCompare(a.imageClip.rotationDegrees + 1,
+                                    b.imageClip.rotationDegrees + 1),
+                      "image-clip rotationDegrees mismatch");
                 break;
             case vlip::ItemKind::VideoClip:
                 CHECK(qFuzzyCompare(a.videoClip.startSecs + 1, b.videoClip.startSecs + 1),

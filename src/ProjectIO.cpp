@@ -75,6 +75,7 @@ QJsonObject toJson(const Item& it) {
             if (it.imageClip.crop) o["crop"] = toJson(*it.imageClip.crop);
             o["src_w"] = it.imageClip.sourceWidth;
             o["src_h"] = it.imageClip.sourceHeight;
+            o["rotation_degrees"] = it.imageClip.rotationDegrees;
             break;
         case ItemKind::VideoClip:
             o["kind"] = "video_clip";
@@ -106,6 +107,7 @@ Item itemFromJson(const QJsonObject& o) {
         if (o.contains("crop")) it.imageClip.crop = rectFromJson(o.value("crop").toObject());
         it.imageClip.sourceWidth = o.value("src_w").toInt();
         it.imageClip.sourceHeight = o.value("src_h").toInt();
+        it.imageClip.rotationDegrees = o.value("rotation_degrees").toDouble(0.0);
     } else if (kind == "text_clip") {
         it.kind = ItemKind::TextClip;
         it.textClip.common = commonFromJson(o.value("common").toObject());

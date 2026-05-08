@@ -41,6 +41,7 @@ private:
     // Image-clip fields
     QGroupBox* m_imageClipGroup;
     QDoubleSpinBox* m_imageClipDuration;
+    QDoubleSpinBox* m_imageClipRotation;
     QPushButton* m_btnCrop;
     QPushButton* m_btnClearCrop;
     QLabel* m_cropLabel;

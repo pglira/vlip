@@ -1,5 +1,6 @@
 #include "MainWindow.hpp"
 #include <algorithm>
+#include <cmath>
 #include "TimelinePane.hpp"
 #include "PropertiesPane.hpp"
 #include "PreviewPane.hpp"
@@ -513,6 +514,18 @@ void MainWindow::setImageClipCrop(const QUuid& id, const std::optional<QRectF>& 
     auto* it = findItem(id);
     if (!it || it->kind != ItemKind::ImageClip) return;
     it->imageClip.crop = rect;
+    onItemMutated(id);
+}
+
+void MainWindow::setImageClipRotation(const QUuid& id, double degrees) {
+    auto* it = findItem(id);
+    if (!it || it->kind != ItemKind::ImageClip) return;
+    // Wrap into (-180, 180] so the persisted value stays bounded regardless
+    // of how many ±90 buttons the user mashes.
+    double d = std::fmod(degrees, 360.0);
+    if (d > 180.0) d -= 360.0;
+    if (d <= -180.0) d += 360.0;
+    it->imageClip.rotationDegrees = d;
     onItemMutated(id);
 }
 

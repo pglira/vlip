@@ -90,6 +90,11 @@ PreviewPane::PreviewPane(MainWindow* mw, QWidget* parent)
             if (m_id.isNull()) return;
             m_mw->setImageClipCrop(m_id, rect);
         });
+    connect(m_imageClip, &ImageClipPreviewWidget::rotationApplied, this,
+        [this](double degrees) {
+            if (m_id.isNull()) return;
+            m_mw->setImageClipRotation(m_id, degrees);
+        });
 
     refresh();
 }
@@ -134,6 +139,7 @@ void PreviewPane::beginImageClipCrop() {
     if (it.common().sourceMissing) return;
     m_stack->setCurrentIndex(0);    // make sure image-clip preview is visible
     m_imageClip->setCrop(it.imageClip.crop);
+    m_imageClip->setRotation(it.imageClip.rotationDegrees);
     m_imageClip->enterCropMode();
 }
 
@@ -218,6 +224,7 @@ void PreviewPane::refresh() {
             m_textClip->clear();
             m_imageClip->setImage(it.common().sourcePath);
             m_imageClip->setCrop(it.imageClip.crop);
+            m_imageClip->setRotation(it.imageClip.rotationDegrees);
             m_imageClip->setSubtitle(it.common().subtitle, m_mw->project().defaults.subtitle);
             m_imageClip->setDatestamp(datestampText, datestampStyle);
             m_stack->setCurrentIndex(0);
