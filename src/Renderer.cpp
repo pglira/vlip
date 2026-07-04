@@ -249,8 +249,14 @@ QString audioFadeChain(const ClipFade& f, double dur) {
 // Canvas conform filters: letterbox-scale to W×H, set 1:1 SAR, lock to
 // FPS, and force yuv420p so every batch's output bitstream has identical
 // codec parameters (a hard requirement for concat-demux + -c copy).
+//
+// in_range=auto:out_range=tv makes libswscale honour the input frame's
+// color_range tag — full-range JPEG/yuvj420p sources get remapped to TV
+// range explicitly instead of relying on implicit detection, so the
+// encoded TV-range output isn't washed-out or clipped.
 QString canvasConformFilters(int W, int H, int FPS) {
-    return QString("scale=%1:%2:force_original_aspect_ratio=decrease,"
+    return QString("scale=%1:%2:force_original_aspect_ratio=decrease"
+                   ":in_range=auto:out_range=tv,"
                    "pad=%1:%2:(ow-iw)/2:(oh-ih)/2:color=black,"
                    "setsar=1,fps=%3,format=yuv420p").arg(W).arg(H).arg(FPS);
 }

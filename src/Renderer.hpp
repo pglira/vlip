@@ -22,10 +22,11 @@ namespace vlip {
 //  2. Concat phase: a final ffmpeg invocation stream-copies the video
 //     intermediates via the concat demuxer, builds the entire audio
 //     timeline (per-clip silence sources or video-clip audio extracts)
-//     in one filter graph, mixes background music with ducking around
-//     video clips, and writes the final MP4. Audio encodes in a single
-//     uninterrupted run, so AAC priming-delay slop doesn't accumulate
-//     per batch boundary.
+//     in one filter graph, mixes background music that pauses for the
+//     duration of each video clip (its audio plays through instead),
+//     and writes the final MP4. Audio encodes in a single uninterrupted
+//     run, so AAC priming-delay slop doesn't accumulate per batch
+//     boundary.
 //
 // finished() reports success or an error message; cancelled() fires
 // instead when the user invoked cancel(). log() emits high-level lines.

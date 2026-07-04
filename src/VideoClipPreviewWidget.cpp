@@ -265,9 +265,9 @@ VideoClipPreviewWidget::VideoClipPreviewWidget(MainWindow* mw,
     m_btnNextFrame->setToolTip(tr("Next frame  (.)\nShift+.  for +1 second"));
     m_btnEnd  = new QPushButton(st->standardIcon(QStyle::SP_MediaSkipForward), QString(), this);
     m_btnEnd->setToolTip(tr("Jump to source end"));
-    m_btnGoStart = new QPushButton(tr("Clip start"), this);
+    m_btnGoStart = new QPushButton(tr("Jump to clip start"), this);
     m_btnGoStart->setToolTip(tr("Jump to the trim-start of this clip"));
-    m_btnGoEnd   = new QPushButton(tr("Clip end"), this);
+    m_btnGoEnd   = new QPushButton(tr("Jump to clip end"), this);
     m_btnGoEnd->setToolTip(tr("Jump to the trim-end of this clip"));
     m_btnSetStart = new QPushButton(tr("Set as Start"), this);
     m_btnSetEnd   = new QPushButton(tr("Set as End"), this);
