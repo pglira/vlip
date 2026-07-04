@@ -117,11 +117,11 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
         sc->setContext(Qt::ApplicationShortcut);
         connect(sc, &QShortcut::activated, this, slot);
     };
-    // vim-style J/K alongside arrow keys: J = next (down), K = previous (up).
-    registerShortcut(QKeySequence(Qt::CTRL | Qt::Key_Down), &MainWindow::selectNextItem);
-    registerShortcut(QKeySequence(Qt::CTRL | Qt::Key_J),    &MainWindow::selectNextItem);
-    registerShortcut(QKeySequence(Qt::CTRL | Qt::Key_Up),   &MainWindow::selectPrevItem);
-    registerShortcut(QKeySequence(Qt::CTRL | Qt::Key_K),    &MainWindow::selectPrevItem);
+    // N alongside arrow keys: N = next (down), Shift+N = previous (up).
+    registerShortcut(QKeySequence(Qt::CTRL | Qt::Key_Down),        &MainWindow::selectNextItem);
+    registerShortcut(QKeySequence(Qt::CTRL | Qt::Key_N),           &MainWindow::selectNextItem);
+    registerShortcut(QKeySequence(Qt::CTRL | Qt::Key_Up),          &MainWindow::selectPrevItem);
+    registerShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_N), &MainWindow::selectPrevItem);
 
     registerShortcut(QKeySequence(Qt::CTRL | Qt::Key_Space),       &MainWindow::toggleSelectedUsed);
     registerShortcut(QKeySequence(Qt::CTRL | Qt::Key_Home),        &MainWindow::selectFirstItem);
@@ -630,7 +630,7 @@ void MainWindow::selectPrevItem() {
     };
     int idx = m_project.indexOfId(m_selectedId);
     if (idx < 0) {
-        // No selection: jump to the last visible item so Ctrl+K from
+        // No selection: jump to the last visible item so Ctrl+Shift+N from
         // nowhere lands somewhere sensible.
         for (int i = m_project.items.size() - 1; i >= 0; --i) {
             if (matches(i)) { setSelected(m_project.items[i].common().id); return; }

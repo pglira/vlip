@@ -50,8 +50,8 @@ between clips, and per-clip adjustments.
 
 | Shortcut              | Action                                 |
 | --------------------- | -------------------------------------- |
-| `Ctrl+↓` / `Ctrl+J`   | Next clip                              |
-| `Ctrl+↑` / `Ctrl+K`   | Previous clip                          |
+| `Ctrl+↓` / `Ctrl+N`       | Next clip                          |
+| `Ctrl+↑` / `Ctrl+Shift+N` | Previous clip                      |
 | `Ctrl+Home`           | First clip                             |
 | `Ctrl+End`            | Last clip                              |
 | `Ctrl+Space`          | Toggle "used" on selected clip         |
