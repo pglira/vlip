@@ -53,7 +53,7 @@ void applySystemFontDefaults(Defaults& d) {
 } // namespace
 
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
-    setWindowTitle(tr("vlip — Slideshow Compiler"));
+    updateWindowTitle();
     setAcceptDrops(true);
     setDockNestingEnabled(true);
     resize(1400, 900);
@@ -423,6 +423,7 @@ void MainWindow::importPaths(const QStringList& paths) {
             }
             m_project.sortChronologically();
             emit message(QString("Imported %1 file(s).").arg(added));
+            if (added > 0) markDirty();
             emit projectChanged();
             delete lastBucket;
             watcher->deleteLater();
@@ -438,10 +439,12 @@ Item* MainWindow::findItem(const QUuid& id) {
 
 void MainWindow::onProjectMutated(bool resort) {
     if (resort) m_project.sortChronologically();
+    markDirty();
     emit projectChanged();
 }
 
 void MainWindow::onItemMutated(const QUuid& id) {
+    markDirty();
     emit itemChanged(id);
 }
 
@@ -453,6 +456,7 @@ void MainWindow::removeItem(const QUuid& id) {
         m_selectedId = QUuid();
         emit selectionChanged(m_selectedId);
     }
+    markDirty();
     emit projectChanged();
 }
 
@@ -813,7 +817,8 @@ void MainWindow::newProject() {
     applySystemFontDefaults(m_project.defaults);
     m_projectPath.clear();
     m_selectedId = QUuid();
-    setWindowTitle(tr("vlip — (untitled)"));
+    markClean();
+    updateWindowTitle();
     emit selectionChanged(m_selectedId);
     emit projectChanged();
     emit message(tr("New project."));
@@ -839,7 +844,8 @@ bool MainWindow::loadProject(const QString& path) {
     applySystemFontDefaults(m_project.defaults);
     m_projectPath = path;
     m_selectedId = QUuid();
-    setWindowTitle(QString("vlip — %1").arg(QFileInfo(path).fileName()));
+    markClean();
+    updateWindowTitle();
     for (const auto& w : warns) emit message(w, MessagesPane::Warning);
     emit selectionChanged(m_selectedId);
     emit projectChanged();
@@ -848,38 +854,67 @@ bool MainWindow::loadProject(const QString& path) {
     return true;
 }
 
-void MainWindow::saveProject() {
-    if (m_projectPath.isEmpty()) { saveProjectAs(); return; }
+bool MainWindow::saveProject() {
+    if (m_projectPath.isEmpty()) return saveProjectAs();
     QString err;
     if (!ProjectIO::save(m_project, m_projectPath, &err)) {
         QMessageBox::critical(this, tr("Save failed"), err);
-        return;
+        return false;
     }
+    markClean();
     emit message(tr("Saved %1").arg(m_projectPath));
     rememberRecentProject(m_projectPath);
+    return true;
 }
 
-void MainWindow::saveProjectAs() {
+bool MainWindow::saveProjectAs() {
     QString p = QFileDialog::getSaveFileName(this, tr("Save project"),
         defaultProjectsDir() + "/untitled.vlip",
         tr("vlip projects (*.vlip);;JSON (*.json)"));
-    if (p.isEmpty()) return;
+    if (p.isEmpty()) return false;
     QString err;
     if (!ProjectIO::save(m_project, p, &err)) {
         QMessageBox::critical(this, tr("Save failed"), err);
-        return;
+        return false;
     }
     m_projectPath = p;
-    setWindowTitle(QString("vlip — %1").arg(QFileInfo(p).fileName()));
+    markClean();
+    updateWindowTitle();
     emit message(tr("Saved %1").arg(p));
     rememberRecentProject(p);
+    return true;
+}
+
+void MainWindow::markDirty() {
+    setWindowModified(true);
+}
+
+void MainWindow::markClean() {
+    setWindowModified(false);
+}
+
+void MainWindow::updateWindowTitle() {
+    const QString name = m_projectPath.isEmpty()
+        ? tr("(untitled)")
+        : QFileInfo(m_projectPath).fileName();
+    // The "[*]" placeholder renders as "*" while the project is modified
+    // and disappears once it is saved (driven by setWindowModified).
+    setWindowTitle(tr("vlip — %1[*]").arg(name));
 }
 
 bool MainWindow::confirmDiscardCurrentProject(const QString& title) {
-    return QMessageBox::question(this, title,
-        tr("Continue?"),
-        QMessageBox::Yes | QMessageBox::No,
-        QMessageBox::No) == QMessageBox::Yes;
+    // Only interrupt the user when there are unsaved changes to lose.
+    if (!isDirty()) return true;
+    const auto btn = QMessageBox::warning(this, title,
+        tr("The current project has unsaved changes.\n"
+           "Do you want to save them first?"),
+        QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel,
+        QMessageBox::Save);
+    switch (btn) {
+        case QMessageBox::Save:    return saveProject();  // proceed only if the save actually succeeds
+        case QMessageBox::Discard: return true;
+        default:                   return false;          // Cancel / dialog dismissed
+    }
 }
 
 QStringList MainWindow::loadRecentProjects() const {

@@ -98,8 +98,11 @@ public:
     // error dialog) if the file is missing, unreadable, or fails parse.
     // Used by both the File → Open dialog and the CLI `vlip <path>`.
     bool loadProject(const QString& path);
-    void saveProject();
-    void saveProjectAs();
+    // Save to the current path (prompting via Save As when untitled), or to
+    // a chosen path. Both return true only when the file was written, so
+    // callers can gate "discard current project" on a successful save.
+    bool saveProject();
+    bool saveProjectAs();
 
     void renderTo();    // prompt for path then render
 
@@ -129,6 +132,17 @@ private:
     // Per-item, non-structural change: emits itemChanged(id) only.
     void onItemMutated(const QUuid& id);
     QString defaultProjectsDir() const;
+
+    // Unsaved-changes ("dirty") tracking. The window-modified flag is the
+    // single source of truth: markDirty/markClean toggle it, the "[*]"
+    // placeholder in the window title reflects it, and confirmDiscard only
+    // prompts while it is set. markDirty runs on every project mutation;
+    // markClean runs on save / load / new.
+    void markDirty();
+    void markClean();
+    bool isDirty() const { return isWindowModified(); }
+    // Rebuild the title from the current project path and dirty state.
+    void updateWindowTitle();
 
     Project m_project;
     QString m_projectPath;        // empty until first save
@@ -161,10 +175,11 @@ private:
     // "saved but stale menu" footgun.
     void setRecentProjects(const QStringList& list);
 
-    // Yes/No confirmation that fires before any action that would
-    // discard the current in-memory project (New, Open, Open Recent,
-    // Quit / window close). Default button is "No" so an accidental
-    // Enter on the dialog doesn't destroy work.
+    // Guards any action that would discard the current in-memory project
+    // (New, Open, Open Recent, Quit / window close). Returns true when the
+    // caller may proceed. With no unsaved changes it returns true silently;
+    // otherwise it offers Save / Discard / Cancel and only returns true if
+    // the user discards, or saves and the save succeeds.
     bool confirmDiscardCurrentProject(const QString& title);
 };
 
