@@ -219,8 +219,9 @@ void MainWindow::resetLayoutToDefaults() {
 void MainWindow::setupMenus() {
     auto* fileMenu = menuBar()->addMenu(tr("&File"));
 
+    // No Ctrl+N accelerator: that key is reserved for clip navigation
+    // (next item). New project stays reachable via the File menu mnemonic.
     auto* aNew = fileMenu->addAction(tr("&New project"));
-    aNew->setShortcut(QKeySequence::New);
     connect(aNew, &QAction::triggered, this, &MainWindow::newProject);
 
     auto* aOpen = fileMenu->addAction(tr("&Open project…"));
