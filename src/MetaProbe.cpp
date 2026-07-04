@@ -189,4 +189,24 @@ ProbeResult MetaProbe::probe(const QString& path) {
     return r;
 }
 
+double MetaProbe::containerDurationSecs(const QString& path) {
+    QFileInfo fi(path);
+    if (!fi.exists()) return 0.0;
+
+    QProcess p;
+    p.start("ffprobe", {
+        "-v", "error",
+        "-show_entries", "format=duration",
+        "-of", "default=noprint_wrappers=1:nokey=1",
+        path
+    });
+    if (!p.waitForStarted(5000)) return 0.0;
+    if (!p.waitForFinished(15000)) { p.kill(); return 0.0; }
+    if (p.exitCode() != 0) return 0.0;
+
+    bool ok = false;
+    const double d = QString::fromUtf8(p.readAllStandardOutput()).trimmed().toDouble(&ok);
+    return (ok && d > 0.0) ? d : 0.0;
+}
+
 } // namespace vlip

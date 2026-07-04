@@ -2,6 +2,9 @@
 
 #include <QWidget>
 #include <QColor>
+#include <QHash>
+#include <QSet>
+#include <QString>
 
 class QSpinBox;
 class QDoubleSpinBox;
@@ -11,6 +14,7 @@ class QPushButton;
 class QCheckBox;
 class QListWidget;
 class QLineEdit;
+class QLabel;
 class QEvent;
 
 namespace vlip {
@@ -35,6 +39,14 @@ private:
     // Push the music list's current visual order back to the project after
     // a drag-and-drop reorder.
     void commitMusicOrderFromList();
+    // Update the Audio-tab summary: total playlist length vs. the timeline
+    // length background music has to cover. Kicks off async duration probes
+    // for any track whose length isn't cached yet.
+    void refreshAudioSummary();
+    // Timeline length music must cover: the frame-rounded duration of every
+    // used, present, non-video clip (music pauses over video clips), matching
+    // the renderer's per-clip duration.
+    double musicCoverageSecs() const;
 
     MainWindow* m_mw;
     QComboBox *m_canvasPreset;
@@ -68,6 +80,11 @@ private:
     // Background-music playlist
     QListWidget *m_musicList;
     QPushButton *m_musicAdd, *m_musicRemove, *m_musicUp, *m_musicDown;
+    QLabel *m_audioSummary;
+    // Cached track length in seconds, keyed by source path; paths currently
+    // being probed off-thread. 0 means "probed but unknown/missing".
+    QHash<QString, double> m_musicDurations;
+    QSet<QString> m_musicProbing;
     // Automatic loudness levelling toggle. Drives the renderer's per-source
     // EBU R128 probe + bias pass.
     QCheckBox *m_audioLevellingActive;

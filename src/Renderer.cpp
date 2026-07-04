@@ -111,8 +111,7 @@ bool Renderer::start(const Project& p, const QString& outPath) {
             && (it.common().sourceMissing || !QFileInfo::exists(it.common().sourcePath))) continue;
         if (it.effectiveDuration() <= 0.001) continue;
 
-        const double dur =
-            std::max(1.0 / FPS, std::round(it.effectiveDuration() * FPS) / FPS);
+        const double dur = frameQuantisedDuration(it, FPS);
         if (it.kind == ItemKind::VideoClip) {
             m_videoWindows.append({m_totalDuration, m_totalDuration + dur});
         }
@@ -197,9 +196,7 @@ bool Renderer::start(const Project& p, const QString& outPath) {
 namespace {
 
 double segmentDuration(const Item& it, int FPS) {
-    // Quantise to whole frames so each clip's audio chain (atrim=0:dur)
-    // and its visual length agree exactly.
-    return std::max(1.0 / FPS, std::round(it.effectiveDuration() * FPS) / FPS);
+    return frameQuantisedDuration(it, FPS);
 }
 
 // Per-clip fade durations. The very first item of the whole timeline has
@@ -349,18 +346,38 @@ QString overlayDrawtextFor(const Item& it, const Project& p, double dur,
     return out;
 }
 
+// Hold a single decoded still frame (image clip, or text-clip background
+// image) for the clip's whole duration. Runs after the canvas-conform
+// `fps` node, so it clones an already-scaled frame at the target rate
+// instead of re-decoding and re-scaling the full-resolution source once
+// per output frame. `trim=end_frame` pins the count to exactly
+// round(dur*FPS) frames, so the clip's video length matches the audio
+// segment the concat pass builds for it. Comma-prefixed to inline into
+// the per-clip chain.
+QString stillHoldFilters(double dur, int FPS) {
+    const long long frames = std::llround(dur * FPS);
+    return QString(",tpad=stop_mode=clone:stop_duration=%1,"
+                   "trim=end_frame=%2,setpts=PTS-STARTPTS")
+        .arg(dur, 0, 'f', 4).arg(frames);
+}
+
 // Append the `-i` block(s) for a single item's visual source. Returns
 // the input index of the video stream the filter chain should reference
-// as `[N:v]`. Audio is intentionally suppressed at the input layer
-// (-an for video clips); the concat pass reopens audio separately.
+// as `[N:v]`. Sets `isStill` when the input is a single decoded frame
+// (image clip, or text-clip background image) that the filter chain must
+// hold for the clip's duration via stillHoldFilters; other sources
+// (video clip, or the lavfi `color` for a plain text clip) already span
+// the full duration. Audio is intentionally suppressed at the input
+// layer (-an for video clips); the concat pass reopens audio separately.
 int appendVideoInput(const Item& it, double dur, int W, int H, int FPS,
-                     QStringList& args, int& inputIndex)
+                     QStringList& args, int& inputIndex, bool& isStill)
 {
+    isStill = false;
     if (it.kind == ItemKind::TextClip) {
         const auto& tc = it.textClip;
         if (!tc.backgroundPath.isEmpty() && QFileInfo::exists(tc.backgroundPath)) {
-            args << "-loop" << "1" << "-t" << QString::number(dur, 'f', 4)
-                 << "-i" << tc.backgroundPath;
+            args << "-i" << tc.backgroundPath;
+            isStill = true;
         } else {
             args << "-f" << "lavfi"
                  << "-t" << QString::number(dur, 'f', 4)
@@ -368,8 +385,8 @@ int appendVideoInput(const Item& it, double dur, int W, int H, int FPS,
                             .arg(W).arg(H).arg(FPS);
         }
     } else if (it.kind == ItemKind::ImageClip) {
-        args << "-loop" << "1" << "-t" << QString::number(dur, 'f', 4)
-             << "-i" << it.imageClip.common.sourcePath;
+        args << "-i" << it.imageClip.common.sourcePath;
+        isStill = true;
     } else {
         const auto& vid = it.videoClip;
         args << "-ss" << QString::number(vid.startSecs, 'f', 4)
@@ -406,12 +423,14 @@ VideoBuild buildVideoSegments(const Project& p, const QVector<int>& usedIndices,
         const double dur = segmentDuration(it, FPS);
         const QString vFade = videoFadeChain(clipFadesFor(globalIdx, dur, transition), dur);
         const QString vlabel = QString("v%1").arg(b.nUsed);
-        const int vIdx = appendVideoInput(it, dur, W, H, FPS, args, inputIndex);
+        bool isStill = false;
+        const int vIdx = appendVideoInput(it, dur, W, H, FPS, args, inputIndex, isStill);
 
         QString chain = QString("[%1:v]").arg(vIdx);
         if (it.kind == ItemKind::ImageClip) chain += rotateAndCropFilterFor(it.imageClip);
         if (it.kind == ItemKind::VideoClip && it.videoClip.isHdr) chain += hdrToSdrFilters();
         chain += canvasConformFilters(W, H, FPS);
+        if (isStill) chain += stillHoldFilters(dur, FPS);
         chain += overlayDrawtextFor(it, p, dur, textWorkDir);
         chain += vFade;
         chain += QString("[%1]").arg(vlabel);

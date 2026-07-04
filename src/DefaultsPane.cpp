@@ -1,5 +1,6 @@
 #include "DefaultsPane.hpp"
 #include "MainWindow.hpp"
+#include "MetaProbe.hpp"
 
 #include <QFormLayout>
 #include <QGroupBox>
@@ -27,8 +28,22 @@
 #include <QFileInfo>
 #include <QEvent>
 #include <QAbstractItemView>
+#include <QtConcurrent>
+#include <QFutureWatcher>
+#include <cmath>
 
 namespace vlip {
+
+// Whole-second H:MM:SS (hours dropped when zero, e.g. "3:07").
+static QString formatDuration(double secs) {
+    const qint64 total = qRound64(std::max(0.0, secs));
+    const qint64 h = total / 3600, m = (total % 3600) / 60, s = total % 60;
+    if (h > 0) {
+        return QString("%1:%2:%3").arg(h)
+            .arg(m, 2, 10, QChar('0')).arg(s, 2, 10, QChar('0'));
+    }
+    return QString("%1:%2").arg(m).arg(s, 2, 10, QChar('0'));
+}
 
 DefaultsPane::DefaultsPane(MainWindow* mw, QWidget* parent)
     : QWidget(parent), m_mw(mw) {
@@ -456,6 +471,14 @@ DefaultsPane::DefaultsPane(MainWindow* mw, QWidget* parent)
     bgmBtns->addStretch(1);
     bgmTab->addLayout(bgmBtns);
 
+    m_audioSummary = new QLabel(this);
+    m_audioSummary->setWordWrap(true);
+    m_audioSummary->setToolTip(tr(
+        "Total length of the music playlist versus the part of the timeline it "
+        "has to cover (all image and text clips; music pauses over video clips). "
+        "The playlist loops if it is shorter than the part to cover."));
+    bgmTab->addWidget(m_audioSummary);
+
     auto updateMusicButtons = [this]() {
         const int row = m_musicList->currentRow();
         const int n = m_musicList->count();
@@ -589,6 +612,8 @@ void DefaultsPane::refresh() {
         m_musicDown->setEnabled(row >= 0 && row < n - 1);
     }
 
+    refreshAudioSummary();
+
     m_suspend = false;
 }
 
@@ -616,6 +641,65 @@ void DefaultsPane::commitMusicOrderFromList() {
         return;
     }
     m_mw->setMusicOrder(order);
+}
+
+double DefaultsPane::musicCoverageSecs() const {
+    const auto& p = m_mw->project();
+    double sum = 0.0;
+    for (const Item& it : p.items) {
+        if (!it.common().used) continue;
+        if (it.kind == ItemKind::VideoClip) continue;  // music pauses over video
+        if (it.kind != ItemKind::TextClip
+            && (it.common().sourceMissing
+                || !QFileInfo::exists(it.common().sourcePath))) continue;
+        if (it.effectiveDuration() <= 0.001) continue;
+        sum += frameQuantisedDuration(it, p.canvas.fps);
+    }
+    return sum;
+}
+
+void DefaultsPane::refreshAudioSummary() {
+    const double cover = musicCoverageSecs();
+
+    // Sum cached track lengths; collect any not-yet-probed paths to probe.
+    double total = 0.0;
+    bool pending = false;
+    QStringList toProbe;
+    for (const QString& path : m_mw->project().backgroundMusic) {
+        if (path.isEmpty()) continue;
+        const auto it = m_musicDurations.constFind(path);
+        if (it != m_musicDurations.constEnd()) {
+            total += it.value();
+        } else {
+            pending = true;
+            if (!m_musicProbing.contains(path)) toProbe << path;
+        }
+    }
+
+    QString totalStr = formatDuration(total);
+    if (pending) totalStr += tr(" (…)");
+    m_audioSummary->setText(
+        tr("Playlist: %1     To cover: %2").arg(totalStr, formatDuration(cover)));
+
+    if (toProbe.isEmpty()) return;
+
+    // Probe unknown track lengths off-thread (ffprobe per file); fill the
+    // cache and re-render the summary when done.
+    for (const QString& path : toProbe) m_musicProbing.insert(path);
+    auto worker = [](const QString& path) -> QPair<QString, double> {
+        return { path, MetaProbe::containerDurationSecs(path) };
+    };
+    auto* watcher = new QFutureWatcher<QPair<QString, double>>(this);
+    connect(watcher, &QFutureWatcher<QPair<QString, double>>::finished, this,
+        [this, watcher]() {
+            for (const auto& pr : watcher->future().results()) {
+                m_musicDurations.insert(pr.first, pr.second);
+                m_musicProbing.remove(pr.first);
+            }
+            watcher->deleteLater();
+            refreshAudioSummary();
+        });
+    watcher->setFuture(QtConcurrent::mapped(toProbe, worker));
 }
 
 void DefaultsPane::pickColor(QPushButton* btn, QColor& target, bool withAlpha,

@@ -9,6 +9,8 @@
 #include <QVariantMap>
 #include <optional>
 #include <QColor>
+#include <algorithm>
+#include <cmath>
 
 namespace vlip {
 
@@ -89,6 +91,15 @@ struct Item {
 
     double effectiveDuration() const;
 };
+
+// On-timeline length of a clip, quantised to whole frames (at least one).
+// A clip's visual length and its audio chain (atrim=0:dur) must agree
+// exactly, so every place that measures timeline length rounds identically
+// through this.
+inline double frameQuantisedDuration(const Item& it, int fps) {
+    const int f = std::max(1, fps);
+    return std::max(1.0 / f, std::round(it.effectiveDuration() * f) / f);
+}
 
 struct Canvas {
     int width = 1920;

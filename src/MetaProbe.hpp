@@ -27,6 +27,11 @@ struct ProbeResult {
 class MetaProbe {
 public:
     static ProbeResult probe(const QString& path);
+
+    // Container (format-level) duration in seconds, or 0 if unavailable.
+    // Works for audio-only files, unlike probe(), which only reports a
+    // duration for motion video.
+    static double containerDurationSecs(const QString& path);
 };
 
 } // namespace vlip
