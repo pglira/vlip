@@ -11,6 +11,7 @@ class QPushButton;
 class QCheckBox;
 class QListWidget;
 class QLineEdit;
+class QEvent;
 
 namespace vlip {
 
@@ -24,10 +25,16 @@ public:
 public slots:
     void refresh();
 
+protected:
+    bool eventFilter(QObject* obj, QEvent* ev) override;
+
 private:
     void pickColor(QPushButton* btn, QColor& target, bool withAlpha,
                    const QString& title = {});
     void paintSwatch(QPushButton* btn, const QColor& c);
+    // Push the music list's current visual order back to the project after
+    // a drag-and-drop reorder.
+    void commitMusicOrderFromList();
 
     MainWindow* m_mw;
     QComboBox *m_canvasPreset;

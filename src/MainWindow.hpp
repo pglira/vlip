@@ -65,6 +65,10 @@ public:
     void addMusicTrack(const QString& path);
     void removeMusicTrack(int index);
     void moveMusicTrack(int from, int to);
+    // Replace the whole playlist order at once (used by drag-and-drop
+    // reordering). Ignored unless order has the same size as the current
+    // playlist; a same-order call changes nothing.
+    void setMusicOrder(const QStringList& order);
 
     // For each calendar day with at least one image / video clip in the
     // project (counted in the project's date-stamp time zone), insert a

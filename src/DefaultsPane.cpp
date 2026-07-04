@@ -25,6 +25,8 @@
 #include <QLineEdit>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QEvent>
+#include <QAbstractItemView>
 
 namespace vlip {
 
@@ -433,6 +435,13 @@ DefaultsPane::DefaultsPane(MainWindow* mw, QWidget* parent)
 
     m_musicList = new QListWidget(this);
     m_musicList->setSelectionMode(QAbstractItemView::SingleSelection);
+    // Reorder tracks by dragging. InternalMove drops moved rows back into
+    // the same list; the drop is synced to the project once Qt finishes
+    // rearranging the items (see eventFilter / commitMusicOrderFromList).
+    m_musicList->setDragDropMode(QAbstractItemView::InternalMove);
+    m_musicList->setDefaultDropAction(Qt::MoveAction);
+    m_musicList->setDropIndicatorShown(true);
+    m_musicList->viewport()->installEventFilter(this);
     bgmTab->addWidget(m_musicList, 1);
 
     auto* bgmBtns = new QHBoxLayout;
@@ -468,14 +477,21 @@ DefaultsPane::DefaultsPane(MainWindow* mw, QWidget* parent)
         const int row = m_musicList->currentRow();
         if (row >= 0) m_mw->removeMusicTrack(row);
     });
+    // Up/Down keep the moved track selected (the refresh() triggered by the
+    // move restores selection by row index, so re-point it at the track's
+    // new row) so the buttons can be clicked repeatedly on the same track.
     connect(m_musicUp, &QPushButton::clicked, this, [this]() {
         const int row = m_musicList->currentRow();
-        if (row > 0) m_mw->moveMusicTrack(row, row - 1);
+        if (row > 0) {
+            m_mw->moveMusicTrack(row, row - 1);
+            m_musicList->setCurrentRow(row - 1);
+        }
     });
     connect(m_musicDown, &QPushButton::clicked, this, [this]() {
         const int row = m_musicList->currentRow();
         if (row >= 0 && row < m_musicList->count() - 1) {
             m_mw->moveMusicTrack(row, row + 1);
+            m_musicList->setCurrentRow(row + 1);
         }
     });
 
@@ -555,6 +571,10 @@ void DefaultsPane::refresh() {
             if (!QFileInfo::exists(path)) display += tr("  [missing]");
             auto* it = new QListWidgetItem(display);
             it->setToolTip(path);
+            // Full source path, so a drag-and-drop reorder can reconstruct
+            // the playlist order from the items regardless of display text.
+            it->setData(Qt::UserRole, path);
+            it->setFlags(it->flags() & ~Qt::ItemIsDropEnabled);
             m_musicList->addItem(it);
         }
         if (prevRow >= 0 && prevRow < m_musicList->count()) {
@@ -570,6 +590,32 @@ void DefaultsPane::refresh() {
     }
 
     m_suspend = false;
+}
+
+bool DefaultsPane::eventFilter(QObject* obj, QEvent* ev) {
+    // A drag-and-drop reorder of the music list finishes inside QListWidget's
+    // own drop handling. Sync the resulting order to the project once that
+    // handling has run, i.e. on the next event-loop turn.
+    if (obj == m_musicList->viewport() && ev->type() == QEvent::Drop) {
+        QMetaObject::invokeMethod(this, [this]() { commitMusicOrderFromList(); },
+                                  Qt::QueuedConnection);
+    }
+    return QWidget::eventFilter(obj, ev);
+}
+
+void DefaultsPane::commitMusicOrderFromList() {
+    QStringList order;
+    order.reserve(m_musicList->count());
+    for (int i = 0; i < m_musicList->count(); ++i) {
+        order << m_musicList->item(i)->data(Qt::UserRole).toString();
+    }
+    if (order.size() != m_mw->project().backgroundMusic.size()) {
+        // The list no longer matches the project (a drop that added or lost a
+        // row); rebuild it from the project rather than committing junk.
+        refresh();
+        return;
+    }
+    m_mw->setMusicOrder(order);
 }
 
 void DefaultsPane::pickColor(QPushButton* btn, QColor& target, bool withAlpha,

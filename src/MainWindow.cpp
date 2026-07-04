@@ -746,6 +746,13 @@ void MainWindow::moveMusicTrack(int from, int to) {
     onProjectMutated(false);
 }
 
+void MainWindow::setMusicOrder(const QStringList& order) {
+    if (order.size() != m_project.backgroundMusic.size()) return;
+    if (order == m_project.backgroundMusic) return;
+    m_project.backgroundMusic = order;
+    onProjectMutated(false);
+}
+
 void MainWindow::insertDailyDateTextClips() {
     if (m_project.items.isEmpty()) {
         emit message(tr("No items in the project."));
