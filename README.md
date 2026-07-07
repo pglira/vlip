@@ -19,8 +19,10 @@ between clips, and per-clip adjustments.
 
 - Imports a mix of JPEG, PNG, HEIC, WebP, TIFF, MP4, MOV, and similar
   as image clips and video clips.
-- Sorts clips strictly by their timestamp; clips with an uncertain
-  timestamp are flagged.
+- Sorts clips by their timestamp; clips with an uncertain timestamp are
+  flagged. A "Manual order" mode lets you arrange clips by hand instead —
+  drag rows or use the ▲/▼ buttons — and that order is kept until you turn
+  the mode off (which re-sorts by date).
 - Shows a live preview of the selected clip. A coloured border tells
   you at a glance whether it will be included in the render
   (green = used, grey = skipped, red = source file missing).

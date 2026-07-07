@@ -12,12 +12,15 @@
 #include <QFileDialog>
 #include <QLabel>
 #include <QMenu>
+#include <QMessageBox>
 #include <QAction>
 #include <QPainter>
 #include <QSettings>
 #include <QStyledItemDelegate>
 #include <QApplication>
 #include <QPixmap>
+#include <QEvent>
+#include <QAbstractItemView>
 
 namespace vlip {
 
@@ -111,6 +114,20 @@ TimelinePane::TimelinePane(MainWindow* mw, QWidget* parent) : QWidget(parent), m
     auto* aRemoveUnused   = removeMenu->addAction(tr("Unused items"));
     auto* aRemoveAll      = removeMenu->addAction(tr("All items"));
     btnRemove->setMenu(removeMenu);
+    // Move the selected item one step. Only meaningful in manual-order
+    // mode; the buttons are enabled by updateReorderControls accordingly.
+    m_btnUp = new QPushButton(QStringLiteral("▲"), this);
+    m_btnUp->setToolTip(tr("Move the selected item up (manual order only)."));
+    m_btnUp->setMaximumWidth(32);
+    m_btnDown = new QPushButton(QStringLiteral("▼"), this);
+    m_btnDown->setToolTip(tr("Move the selected item down (manual order only)."));
+    m_btnDown->setMaximumWidth(32);
+
+    m_chkManualOrder = new QCheckBox(tr("Manual order"), this);
+    m_chkManualOrder->setToolTip(tr(
+        "Keep items in the order you arrange them — drag rows or use the "
+        "▲/▼ buttons — instead of sorting by date.\n"
+        "Turning this off re-sorts every item by date."));
     m_chkHideUnused = new QCheckBox(tr("Hide unused"), this);
     m_chkHideUnused->setToolTip(tr(
         "Show only items marked as 'used'. Navigation shortcuts skip hidden items."));
@@ -118,13 +135,36 @@ TimelinePane::TimelinePane(MainWindow* mw, QWidget* parent) : QWidget(parent), m
     row->addWidget(btnImport);
     row->addWidget(btnInsertText);
     row->addWidget(btnRemove);
+    row->addWidget(m_btnUp);
+    row->addWidget(m_btnDown);
     row->addStretch(1);
+    row->addWidget(m_chkManualOrder);
     row->addWidget(m_chkHideUnused);
     vbox->addLayout(row);
 
     connect(m_chkHideUnused, &QCheckBox::toggled, this, [this](bool on) {
         setHideUnused(on);
     });
+    connect(m_chkManualOrder, &QCheckBox::toggled, this, [this](bool on) {
+        // Leaving manual order re-sorts every item by date and discards the
+        // hand-arranged order, so confirm first (nothing to lose when empty).
+        if (!on && !m_mw->project().items.isEmpty()) {
+            const auto btn = QMessageBox::warning(
+                this, tr("Switch to date order?"),
+                tr("Turning off manual order re-sorts all items by date and "
+                   "discards your manual arrangement.\n\nContinue?"),
+                QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+            if (btn != QMessageBox::Yes) {
+                // Restore the checkbox without re-entering this handler.
+                QSignalBlocker b(m_chkManualOrder);
+                m_chkManualOrder->setChecked(true);
+                return;
+            }
+        }
+        m_mw->setManualOrder(on);
+    });
+    connect(m_btnUp, &QPushButton::clicked, this, [this]() { moveSelected(-1); });
+    connect(m_btnDown, &QPushButton::clicked, this, [this]() { moveSelected(+1); });
 
     m_tree = new QTreeWidget(this);
     m_tree->setColumnCount(4);
@@ -133,6 +173,12 @@ TimelinePane::TimelinePane(MainWindow* mw, QWidget* parent) : QWidget(parent), m
     m_tree->setIconSize(QSize(kThumbMaxWidth, kThumbHeight));
     m_tree->setUniformRowHeights(true);
     m_tree->setSelectionMode(QAbstractItemView::SingleSelection);
+    // Rows reorder by dragging in manual-order mode. The drag mode is
+    // turned on/off by updateReorderControls; the drop is committed to the
+    // project on the next event-loop turn (see eventFilter).
+    m_tree->setDefaultDropAction(Qt::MoveAction);
+    m_tree->setDropIndicatorShown(true);
+    m_tree->viewport()->installEventFilter(this);
     // Columns: ✓ stays fixed-width (it's just a checkbox), the rest are
     // Interactive so the user can drag dividers. Last-section stretching
     // is off so users have full control over every column's width.
@@ -235,7 +281,11 @@ QIcon TimelinePane::iconForItem(const Item& it) {
 }
 
 void TimelinePane::populateRow(QTreeWidgetItem* row, const Item& it) {
-    row->setFlags(row->flags() | Qt::ItemIsUserCheckable);
+    // Draggable, but never a drop target itself, so an InternalMove drop
+    // lands between rows (reorder) rather than nesting one row under another.
+    Qt::ItemFlags flags = row->flags() | Qt::ItemIsUserCheckable | Qt::ItemIsDragEnabled;
+    flags &= ~Qt::ItemIsDropEnabled;
+    row->setFlags(flags);
     row->setCheckState(0, it.common().used ? Qt::Checked : Qt::Unchecked);
     row->setData(0, Qt::UserRole, it.common().id.toString());
     row->setIcon(1, iconForItem(it));
@@ -279,6 +329,13 @@ QTreeWidgetItem* TimelinePane::findRow(const QUuid& id) const {
 }
 
 void TimelinePane::refresh() {
+    if (m_dragInProgress) {
+        // Rebuilding now would delete the QTreeWidgetItem the in-flight
+        // internal-move drag still holds — QDrag::exec spins a nested event
+        // loop that can deliver this queued call mid-drag. Defer it.
+        m_refreshPending = true;
+        return;
+    }
     // Block signals on the tree so setCheckState() / setText() don't fire
     // itemChanged → setUsed feedback.
     QSignalBlocker treeBlock(m_tree);
@@ -300,6 +357,7 @@ void TimelinePane::refresh() {
     m_tree->setColumnWidth(0, 28);
     m_suspendSignals = false;
     updateSummary();
+    updateReorderControls();
 }
 
 void TimelinePane::refreshRow(const QUuid& id) {
@@ -344,6 +402,9 @@ void TimelinePane::selectId(const QUuid& id) {
     for (int i = 0; i < m_tree->topLevelItemCount(); ++i) {
         auto* it = m_tree->topLevelItem(i);
         if (QUuid::fromString(it->data(0, Qt::UserRole).toString()) == id) {
+            // setCurrentItem drives onSelectionChanged (which refreshes the
+            // reorder controls) unless the tree's signals are blocked, as
+            // they are during refresh(); refresh() updates them itself.
             m_tree->setCurrentItem(it);
             return;
         }
@@ -356,6 +417,7 @@ void TimelinePane::onSelectionChanged() {
     if (!it) return;
     QUuid id = QUuid::fromString(it->data(0, Qt::UserRole).toString());
     m_mw->setSelected(id);
+    updateReorderControls();
 }
 
 void TimelinePane::onItemChanged(QTreeWidgetItem* it, int col) {
@@ -375,6 +437,105 @@ void TimelinePane::setHideUnused(bool on) {
         m_chkHideUnused->setChecked(on);
     }
     refresh();
+}
+
+void TimelinePane::updateReorderControls() {
+    const bool manual = m_mw->manualOrder();
+    if (m_chkManualOrder->isChecked() != manual) {
+        QSignalBlocker b(m_chkManualOrder);
+        m_chkManualOrder->setChecked(manual);
+    }
+    // Reordering needs the full, unfiltered list so a row's position maps
+    // 1:1 to its index in the item array; disable it while "Hide unused"
+    // hides rows.
+    const bool canReorder = manual && !m_hideUnused;
+    m_tree->setDragDropMode(canReorder ? QAbstractItemView::InternalMove
+                                       : QAbstractItemView::NoDragDrop);
+    if (manual && m_hideUnused) {
+        const QString hint = tr("Turn off \"Hide unused\" to reorder items.");
+        m_btnUp->setToolTip(hint);
+        m_btnDown->setToolTip(hint);
+    } else {
+        m_btnUp->setToolTip(tr("Move the selected item up (manual order only)."));
+        m_btnDown->setToolTip(tr("Move the selected item down (manual order only)."));
+    }
+
+    const QUuid id = m_mw->selectedId();
+    const int n = m_mw->project().items.size();
+    const int idx = id.isNull() ? -1 : m_mw->project().indexOfId(id);
+    m_btnUp->setEnabled(canReorder && idx > 0);
+    m_btnDown->setEnabled(canReorder && idx >= 0 && idx < n - 1);
+}
+
+void TimelinePane::moveSelected(int delta) {
+    const QUuid id = m_mw->selectedId();
+    if (id.isNull()) return;
+    const int idx = m_mw->project().indexOfId(id);
+    if (idx < 0) return;
+    const int to = idx + delta;
+    if (to < 0 || to >= m_mw->project().items.size()) return;
+    // Selection is tracked by id, so the moved item stays selected across
+    // the refresh — the button can be clicked repeatedly on the same item.
+    m_mw->moveItem(idx, to);
+}
+
+void TimelinePane::commitItemOrderFromTree() {
+    // The drag is over: allow refreshes again before triggering any.
+    m_dragInProgress = false;
+    QList<QUuid> order;
+    order.reserve(m_tree->topLevelItemCount());
+    for (int i = 0; i < m_tree->topLevelItemCount(); ++i) {
+        auto* it = m_tree->topLevelItem(i);
+        order << QUuid::fromString(it->data(0, Qt::UserRole).toString());
+    }
+    const bool hadPending = m_refreshPending;
+    m_refreshPending = false;
+    if (order.size() != m_mw->project().items.size()) {
+        // Tree and project disagree (e.g. an import landed during the drag);
+        // rebuild from the project rather than commit a partial order.
+        refresh();
+        return;
+    }
+    m_mw->setItemOrder(order);   // emits projectChanged → refresh on a real change
+    if (hadPending) refresh();   // a refresh was deferred mid-drag; make sure it lands
+}
+
+void TimelinePane::endDrag() {
+    m_dragInProgress = false;
+    if (m_refreshPending) {
+        m_refreshPending = false;
+        // Re-post so the rebuild runs after the drag machinery unwinds,
+        // never from inside a drag-event handler.
+        QMetaObject::invokeMethod(this, [this]() { refresh(); }, Qt::QueuedConnection);
+    }
+}
+
+bool TimelinePane::eventFilter(QObject* obj, QEvent* ev) {
+    if (obj == m_tree->viewport()) {
+        switch (ev->type()) {
+            case QEvent::DragEnter:
+            case QEvent::DragMove:
+                // An internal-move drag is live over the tree; block tree
+                // rebuilds until it ends (see refresh()).
+                m_dragInProgress = true;
+                break;
+            case QEvent::DragLeave:
+                // Drag cancelled or moved away without dropping here.
+                endDrag();
+                break;
+            case QEvent::Drop:
+                // Sync the resulting row order to the project once
+                // QTreeWidget finishes its own internal move, on the next
+                // event-loop turn. m_dragInProgress stays set until then so a
+                // refresh can't clear the tree before the order is read.
+                QMetaObject::invokeMethod(this, [this]() { commitItemOrderFromTree(); },
+                                          Qt::QueuedConnection);
+                break;
+            default:
+                break;
+        }
+    }
+    return QWidget::eventFilter(obj, ev);
 }
 
 void TimelinePane::updateSummary() {

@@ -182,6 +182,10 @@ struct Project {
     Canvas canvas;
     Defaults defaults;
     QVector<Item> items;
+    // When true, items keep the order the user arranges them in and are
+    // never auto-sorted; when false, items are kept in chronological order
+    // (sortChronologically) after every mutation and on load.
+    bool manualOrder = false;
     // Project-wide background-music playlist. Plays during image and
     // text clips; the playhead pauses at each video clip's start and
     // resumes at its end.

@@ -5,11 +5,13 @@
 #include <QMainWindow>
 #include <QUuid>
 #include <QStringList>
+#include <QList>
 
 class QDockWidget;
 class QLabel;
 class QMenu;
 class QPushButton;
+class QAction;
 
 namespace vlip {
 
@@ -40,6 +42,17 @@ public:
     void removeAllItems();
     void setSelected(const QUuid& id);
     void setUsed(const QUuid& id, bool used);
+
+    // Manual reordering of items. moveItem shifts one item by a step
+    // (Up/Down buttons); setItemOrder replaces the whole order at once
+    // (drag-and-drop). Both are no-ops unless the project is in
+    // manual-order mode. setManualOrder switches ordering mode: turning it
+    // off re-sorts chronologically immediately, turning it on freezes the
+    // current order as the manual baseline.
+    void moveItem(int from, int to);
+    void setItemOrder(const QList<QUuid>& order);
+    void setManualOrder(bool on);
+    bool manualOrder() const { return m_project.manualOrder; }
     void setSubtitle(const QUuid& id, const QString& s);
     void setImageClipDuration(const QUuid& id, double secs);
     void setImageClipCrop(const QUuid& id, const std::optional<QRectF>& rect);
@@ -133,6 +146,10 @@ private:
     void resetLayoutToDefaults();
     Item* findItem(const QUuid& id);
     void onProjectMutated(bool resort);
+    // Enable/disable menu actions whose behaviour depends on chronological
+    // ordering (currently the per-day date text-clip insertion), following
+    // the project's manual-order mode.
+    void updateOrderDependentActions();
     // Per-item, non-structural change: emits itemChanged(id) only.
     void onItemMutated(const QUuid& id);
     QString defaultProjectsDir() const;
@@ -167,6 +184,7 @@ private:
     Renderer* m_renderer = nullptr;
     QPushButton* m_cancelRenderBtn = nullptr;  // shown in menu bar's right corner only while rendering
     QMenu* m_recentMenu = nullptr;             // File → Open Recent submenu
+    QAction* m_actDailyDates = nullptr;        // disabled while in manual-order mode
 
     // Recent-projects MRU list, persisted via QSettings under
     // "recentProjects". Updated whenever a project is loaded or saved.

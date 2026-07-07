@@ -9,6 +9,8 @@ class QTreeWidget;
 class QTreeWidgetItem;
 class QLabel;
 class QCheckBox;
+class QPushButton;
+class QEvent;
 
 namespace vlip {
 
@@ -40,6 +42,11 @@ public:
     void setHideUnused(bool on);
     void toggleHideUnused() { setHideUnused(!m_hideUnused); }
 
+protected:
+    // Watches the tree viewport for a drag-and-drop reorder (InternalMove)
+    // completing, so the resulting row order can be committed to the project.
+    bool eventFilter(QObject* obj, QEvent* ev) override;
+
 private slots:
     void onSelectionChanged();
     void onItemChanged(QTreeWidgetItem* it, int col);
@@ -50,16 +57,36 @@ private:
     void populateRow(QTreeWidgetItem* row, const Item& it);
     QIcon iconForItem(const Item& it);
     void updateSummary();
+    // Rebuild the project's item order from the tree's current row order
+    // after a drag-and-drop reorder.
+    void commitItemOrderFromTree();
+    // Enable/disable the reorder affordances (drag, Up/Down) and sync the
+    // manual-order checkbox to the project. Reordering is offered only in
+    // manual-order mode with the "Hide unused" filter off.
+    void updateReorderControls();
+    // Move the selected item one step; no-op outside manual-order mode.
+    void moveSelected(int delta);
+    // Clear the in-progress-drag guard and run any refresh deferred while
+    // the drag held the tree's items.
+    void endDrag();
 
     MainWindow* m_mw;
     QTreeWidget* m_tree;
     QLabel* m_summary;
     QCheckBox* m_chkHideUnused;
+    QCheckBox* m_chkManualOrder;
+    QPushButton* m_btnUp;
+    QPushButton* m_btnDown;
     // Keyed by thumbPath (or by a synthetic key for text clips). Avoids
     // re-reading + re-scaling the file on every refresh().
     QHash<QString, QIcon> m_iconCache;
     bool m_hideUnused = false;
     bool m_suspendSignals = false;
+    // While an internal-move drag holds the tree's items, refresh() must not
+    // rebuild (it would delete the dragged item mid-drag). Refreshes asked
+    // for during that window are deferred and run once the drag ends.
+    bool m_dragInProgress = false;
+    bool m_refreshPending = false;
 };
 
 } // namespace vlip

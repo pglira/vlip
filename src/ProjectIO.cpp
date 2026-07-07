@@ -301,6 +301,8 @@ bool ProjectIO::save(const Project& p, const QString& path, QString* err) {
     defaults["time_zone"] = QString::fromUtf8(p.defaults.timeZone);
     root["defaults"] = defaults;
 
+    root["manual_order"] = p.manualOrder;
+
     QJsonArray items;
     for (const auto& it : p.items) items.append(toJson(it));
     root["items"] = items;
@@ -362,6 +364,8 @@ bool ProjectIO::load(Project* p, const QString& path, QStringList* warnings, QSt
         p->defaults.timeZone = defaults.value("time_zone").toString().toUtf8();
     }
 
+    p->manualOrder = root.value("manual_order").toBool(false);
+
     p->items.clear();
     for (auto v : root.value("items").toArray()) {
         Item it = itemFromJson(v.toObject());
@@ -391,7 +395,9 @@ bool ProjectIO::load(Project* p, const QString& path, QStringList* warnings, QSt
         }
         p->items.append(it);
     }
-    p->sortChronologically();
+    // Chronological order is a derived property; skip it when the project
+    // is in manual-order mode so the saved arrangement is preserved.
+    if (!p->manualOrder) p->sortChronologically();
 
     p->backgroundMusic.clear();
     for (auto v : root.value("background_music").toArray()) {

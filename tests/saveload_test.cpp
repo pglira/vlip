@@ -77,6 +77,12 @@ int main(int argc, char** argv) {
     p.sortChronologically();
     CHECK(!p.items.isEmpty(), "no items imported");
 
+    // Manual-order mode: arrange items in a deliberately non-chronological
+    // order and confirm both the order and the flag survive the round-trip
+    // (load must not re-sort when manualOrder is set).
+    p.manualOrder = true;
+    if (p.items.size() > 1) p.items.move(p.items.size() - 1, 0);
+
     QString saveTo = "/tmp/vlip-saveload.vlip";
     QString err;
     CHECK(vlip::ProjectIO::save(p, saveTo, &err), qPrintable(err));
@@ -107,6 +113,7 @@ int main(int argc, char** argv) {
     CHECK(reload.defaults.datestamp.format == p.defaults.datestamp.format,
           "datestamp format mismatch");
     CHECK(reload.items.size() == p.items.size(), "items count mismatch");
+    CHECK(reload.manualOrder == p.manualOrder, "manualOrder mismatch");
     CHECK(reload.backgroundMusic == p.backgroundMusic, "backgroundMusic mismatch");
 
     for (int i = 0; i < p.items.size(); ++i) {

@@ -31,6 +31,7 @@
 #include <QFutureWatcher>
 #include <QApplication>
 #include <QFileInfo>
+#include <QHash>
 #include <QSet>
 #include <QTimeZone>
 
@@ -90,6 +91,11 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     connect(this, &MainWindow::selectionChanged, m_preview, &PreviewPane::onSelectionChanged);
     connect(this, &MainWindow::selectionChanged, m_timeline, &TimelinePane::selectId);
     connect(this, &MainWindow::message, m_messages, &MessagesPane::appendMessage);
+
+    // Keep order-dependent menu actions in sync with the project's
+    // manual-order mode.
+    connect(this, &MainWindow::projectChanged, this, &MainWindow::updateOrderDependentActions);
+    updateOrderDependentActions();
 
     connect(m_renderer, &Renderer::log, this, [this](const QString& s) {
         emit message(s);
@@ -326,12 +332,13 @@ void MainWindow::setupMenus() {
     connect(aTextClearBg, &QAction::triggered, this, [this]() {
         applyTextClipBackgroundToAll(QString());
     });
-    auto* aDailyDates = textMenu->addAction(tr("Insert &date text clip for each day"));
-    aDailyDates->setToolTip(tr(
+    m_actDailyDates = textMenu->addAction(tr("Insert &date text clip for each day"));
+    m_actDailyDates->setToolTip(tr(
         "For each calendar day with image / video clips, insert a text clip\n"
         "with the date (DD.MM.YYYY) just before the day's first clip.\n"
-        "Days that already have a matching date text clip are skipped."));
-    connect(aDailyDates, &QAction::triggered, this, &MainWindow::insertDailyDateTextClips);
+        "Days that already have a matching date text clip are skipped.\n"
+        "Available only in date-order mode."));
+    connect(m_actDailyDates, &QAction::triggered, this, &MainWindow::insertDailyDateTextClips);
 }
 
 void MainWindow::persistLayout() {
@@ -422,7 +429,9 @@ void MainWindow::importPaths(const QStringList& paths) {
                         .arg(r.warning), MessagesPane::Warning);
                 }
             }
-            m_project.sortChronologically();
+            // In manual-order mode new items stay appended at the end;
+            // otherwise they're merged into chronological order.
+            if (!m_project.manualOrder) m_project.sortChronologically();
             emit message(QString("Imported %1 file(s).").arg(added));
             if (added > 0) markDirty();
             emit projectChanged();
@@ -447,6 +456,10 @@ void MainWindow::onProjectMutated(bool resort) {
 void MainWindow::onItemMutated(const QUuid& id) {
     markDirty();
     emit itemChanged(id);
+}
+
+void MainWindow::updateOrderDependentActions() {
+    if (m_actDailyDates) m_actDailyDates->setEnabled(!m_project.manualOrder);
 }
 
 void MainWindow::removeItem(const QUuid& id) {
@@ -583,9 +596,25 @@ QUuid MainWindow::addTextClip(const QUuid& referenceId, InsertPosition pos) {
     ts.setTimeSpec(Qt::UTC);
     t.common.timestamp = ts;
 
-    m_project.items.append(Item::makeTextClip(t));
-    m_selectedId = t.common.id;
-    onProjectMutated(true);
+    if (m_project.manualOrder) {
+        // No resort will place the clip in manual mode, so insert it
+        // directly on the requested side of the reference. The synthetic
+        // timestamp above is still kept so the position survives a later
+        // switch back to date-order.
+        int insertAt;
+        if (idx >= 0) {
+            insertAt = (pos == InsertPosition::Before) ? idx : idx + 1;
+        } else {
+            insertAt = (pos == InsertPosition::Before) ? 0 : m_project.items.size();
+        }
+        m_project.items.insert(insertAt, Item::makeTextClip(t));
+        m_selectedId = t.common.id;
+        onProjectMutated(false);
+    } else {
+        m_project.items.append(Item::makeTextClip(t));
+        m_selectedId = t.common.id;
+        onProjectMutated(true);
+    }
     emit selectionChanged(m_selectedId);
     return t.common.id;
 }
@@ -753,7 +782,64 @@ void MainWindow::setMusicOrder(const QStringList& order) {
     onProjectMutated(false);
 }
 
+void MainWindow::moveItem(int from, int to) {
+    if (!m_project.manualOrder) return;
+    const int n = m_project.items.size();
+    if (from < 0 || from >= n || to < 0 || to >= n || from == to) return;
+    m_project.items.move(from, to);
+    onProjectMutated(false);
+}
+
+void MainWindow::setItemOrder(const QList<QUuid>& order) {
+    if (!m_project.manualOrder) return;
+    // A size mismatch means the list changed under the drag (an add/remove);
+    // let the caller rebuild from the project.
+    if (order.size() != m_project.items.size()) return;
+
+    QHash<QUuid, int> indexById;
+    indexById.reserve(m_project.items.size());
+    for (int i = 0; i < m_project.items.size(); ++i) {
+        indexById.insert(m_project.items[i].common().id, i);
+    }
+
+    QVector<Item> reordered;
+    reordered.reserve(order.size());
+    QSet<QUuid> seen;
+    bool changed = false;
+    for (int pos = 0; pos < order.size(); ++pos) {
+        const auto it = indexById.constFind(order[pos]);
+        if (it == indexById.constEnd() || seen.contains(order[pos])) {
+            // `order` isn't a clean permutation of the current ids (an
+            // unknown or duplicated id). Don't corrupt the list — re-emit so
+            // the views snap back to the unchanged project order.
+            emit projectChanged();
+            return;
+        }
+        seen.insert(order[pos]);
+        if (it.value() != pos) changed = true;
+        reordered.append(m_project.items[it.value()]);
+    }
+    if (!changed) return;
+    m_project.items.swap(reordered);
+    onProjectMutated(false);
+}
+
+void MainWindow::setManualOrder(bool on) {
+    if (m_project.manualOrder == on) return;
+    m_project.manualOrder = on;
+    // Leaving manual mode re-imposes chronological order at once; entering
+    // it freezes the current order, so no resort is needed.
+    onProjectMutated(!on);
+}
+
 void MainWindow::insertDailyDateTextClips() {
+    // Day-boundary detection walks the items in chronological order; that
+    // premise doesn't hold once the user takes over ordering manually.
+    if (m_project.manualOrder) {
+        emit message(tr("Date text clips can only be inserted in date-order mode."),
+                     MessagesPane::Warning);
+        return;
+    }
     if (m_project.items.isEmpty()) {
         emit message(tr("No items in the project."));
         return;
